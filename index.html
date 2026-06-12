@@ -166,35 +166,223 @@ body {
   color: var(--color-secondary-foreground);
 }
 
-/* ----- 占位卡片（T1 骨架可见性） ----- */
-.card-placeholder {
-  border: 2px dashed var(--color-border);
+/* ============================================================
+   T2 · 组件样式
+   参考：design/components/Card.jsx / Button.jsx
+         NumberStepper.jsx / Navbar.jsx
+   ============================================================ */
+
+/* ----- Card 卡片容器 ----- */
+.card {
   border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
   background-color: var(--color-card);
-  padding: 32px 24px;
-  min-height: 160px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.card-header {
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-card-foreground);
+}
+
+.card-desc {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+}
+
+/* ----- Button 按钮 ----- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: opacity 150ms, background-color 150ms;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-ring);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* primary 变体 */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+/* secondary 变体 */
+.btn-secondary {
+  border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  color: var(--color-foreground);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-secondary);
+}
+
+/* ----- NumberStepper 步进器 ----- */
+.stepper {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  padding: 16px;
+}
+
+.stepper-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stepper-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stepper-dot.primary {
+  background-color: var(--color-primary);
+}
+
+.stepper-dot.accent {
+  background-color: var(--color-accent-foreground);
+}
+
+.stepper-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+.stepper-sublabel {
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+
+.stepper-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stepper-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-secondary);
+  color: var(--color-foreground);
+  font-size: 18px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms;
+  flex-shrink: 0;
 }
 
-.card-placeholder .placeholder-text {
-  font-size: 14px;
-  color: var(--color-muted-foreground);
+.stepper-btn:hover {
+  background-color: var(--color-muted);
+}
+
+.stepper-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-ring);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stepper-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-input);
+  background-color: var(--color-background);
   text-align: center;
-  line-height: 1.6;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-foreground);
 }
 
-.card-placeholder .placeholder-label {
-  display: block;
+.stepper-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-ring);
+}
+
+.stepper-hint {
+  margin-top: 8px;
+  text-align: center;
   font-size: 12px;
-  color: var(--color-border);
-  margin-top: 4px;
+  color: var(--color-muted-foreground);
 }
 
-/* 预览区占位更大 */
-#preview-card.card-placeholder {
-  min-height: 320px;
+/* ----- PresetChip 快捷按钮 ----- */
+.preset-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 150ms, color 150ms;
+  background-color: var(--color-card);
+  color: var(--color-muted-foreground);
+}
+
+.preset-chip:hover {
+  background-color: var(--color-secondary);
+}
+
+.preset-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-ring);
+}
+
+.preset-chip.active {
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  border-color: var(--color-primary);
+}
+
+/* ----- 暂未实现占位提示 ----- */
+.placeholder-note {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+  font-style: italic;
 }
 
 /* ----- 提示卡片（底部） ----- */
@@ -241,38 +429,80 @@ body {
 
     <!-- ========== 左侧栏 #left-panel ========== -->
     <aside id="left-panel">
-      <!-- 输入区占位（T2/T6 实现） -->
-      <div id="input-card" class="card-placeholder">
-        <div class="placeholder-text">
-          输入区<br>
-          <span class="placeholder-label">客方/主方步进器 + 快捷案例（待 T2、T6 实现）</span>
+      <!-- 输入区（T6 实现交互） -->
+      <div id="input-card" class="card">
+        <div class="card-header">
+          <h2 class="card-title">人数设置</h2>
+          <p class="card-desc">输入客方、主方人数，实时生成平面图。</p>
         </div>
+        <!-- 客方步进器（静态示意，交互待 T6） -->
+        <div class="stepper" style="margin-bottom:16px">
+          <div class="stepper-header">
+            <span class="stepper-dot primary"></span>
+            <span class="stepper-label">客方人数</span>
+            <span class="stepper-sublabel">长边 A · 上座 · 面门</span>
+          </div>
+          <div class="stepper-body">
+            <button class="stepper-btn" disabled>−</button>
+            <input class="stepper-input" type="text" value="5" readonly>
+            <button class="stepper-btn">+</button>
+          </div>
+          <p class="stepper-hint">范围 0 – 8 人</p>
+        </div>
+        <!-- 主方步进器（静态示意） -->
+        <div class="stepper" style="margin-bottom:16px">
+          <div class="stepper-header">
+            <span class="stepper-dot accent"></span>
+            <span class="stepper-label">主方人数</span>
+            <span class="stepper-sublabel">长边 B · 门侧</span>
+          </div>
+          <div class="stepper-body">
+            <button class="stepper-btn" disabled>−</button>
+            <input class="stepper-input" type="text" value="5" readonly>
+            <button class="stepper-btn">+</button>
+          </div>
+          <p class="stepper-hint">范围 0 – 8 人</p>
+        </div>
+        <!-- 快捷案例按钮组（静态示意） -->
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="preset-chip active">客5 · 主5</span>
+          <span class="preset-chip">客3 · 主3</span>
+          <span class="preset-chip">客8 · 主8</span>
+          <span class="preset-chip">客4 · 主6</span>
+          <span class="preset-chip">客0 · 主2</span>
+        </div>
+        <span class="placeholder-note">▲ 交互逻辑待 T6 实现（目前为静态展示）</span>
       </div>
 
       <!-- 座次规则说明占位（T7 实现） -->
-      <div id="rules-card" class="card-placeholder">
-        <div class="placeholder-text">
-          座次规则<br>
-          <span class="placeholder-label">5 条排序规则（待 T7 实现）</span>
+      <div id="rules-card" class="card">
+        <div class="card-header">
+          <h2 class="card-title">座次规则</h2>
+          <p class="card-desc">自动排列遵循以下礼仪规则。</p>
         </div>
+        <span class="placeholder-note">▲ 5 条排序规则待 T7 实现</span>
       </div>
     </aside>
 
     <!-- ========== 右侧栏 #right-panel ========== -->
     <section id="right-panel">
-      <!-- 预览区占位（T3/T4 实现 SVG） -->
-      <div id="preview-card" class="card-placeholder">
-        <div class="placeholder-text">
-          SVG 平面图预览区<br>
-          <span class="placeholder-label">房间 · 会议桌 · 座位（待 T3、T4 实现）</span>
+      <!-- 预览区（T3/T4 实现 SVG） -->
+      <div id="preview-card" class="card">
+        <div class="card-header">
+          <h2 class="card-title">平面图预览</h2>
+          <p class="card-desc">座位自动排列，实时更新。</p>
+        </div>
+        <div style="min-height:320px;display:flex;align-items:center;justify-content:center">
+          <span class="placeholder-note">SVG 平面图待 T3、T4 实现</span>
         </div>
       </div>
 
-      <!-- 操作按钮区占位（T6/T9 实现） -->
-      <div id="actions-area" class="card-placeholder" style="min-height:60px">
-        <div class="placeholder-text">
-          操作按钮<br>
-          <span class="placeholder-label">下载 SVG / 打印（待 T6、T9 实现）</span>
+      <!-- 操作按钮区（T6/T9 实现交互） -->
+      <div id="actions-area" class="card">
+        <div style="display:flex;gap:12px;align-items:center">
+          <button class="btn btn-primary">下载 SVG</button>
+          <button class="btn btn-secondary">打印 / 导出 PDF</button>
+          <span class="placeholder-note" style="margin-top:0">（待 T6/T9 实现功能）</span>
         </div>
       </div>
     </section>
@@ -280,11 +510,11 @@ body {
   </div><!-- /#main -->
 
   <!-- 使用提示占位（T8 实现） -->
-  <div id="tips-card" class="card-placeholder" style="min-height:100px">
-    <div class="placeholder-text">
-      使用提示<br>
-      <span class="placeholder-label">3 条实用提示（待 T8 实现）</span>
+  <div id="tips-card" class="card">
+    <div class="card-header">
+      <h2 class="card-title">使用提示</h2>
     </div>
+    <span class="placeholder-note">▲ 3 条实用提示待 T8 实现</span>
   </div>
 
 </div><!-- /.page-container -->
