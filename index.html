@@ -554,10 +554,21 @@ body {
               门 2
             </text>
 
-            <!-- 座位将在 T4 动态渲染 -->
+            <!-- 座位由 JS 动态渲染 -->
+            <g id="seats-layer"></g>
           </svg>
         </div>
-        <span class="placeholder-note" style="margin-top:12px">▲ 座位将在 T4 动态渲染</span>
+        <div class="legend" style="margin-top:16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:16px;font-size:12px;color:var(--color-muted-foreground)">
+          <span style="display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:14px;height:14px;border-radius:2px;background:var(--color-primary)"></span>
+            有人座位（标数字）
+          </span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span style="display:inline-block;width:14px;height:14px;border-radius:2px;border:2px dashed var(--color-border)"></span>
+            空位占位
+          </span>
+          <span>※ Mock 数据：客 5 · 主 5</span>
+        </div>
       </div>
 
       <!-- 操作按钮区（T6/T9 实现交互） -->
@@ -581,6 +592,115 @@ body {
   </div>
 
 </div><!-- /.page-container -->
+
+<!-- ============================================================
+     T4 · 座位渲染脚本
+     ============================================================ -->
+<script>
+(function () {
+  "use strict";
+
+  /* ---- 常量（来源：DESIGN.md §4） ---- */
+  var VIEW_W = 820;
+  var VIEW_H = 470;
+  var SEAT = 56;          // 座位边长
+  var SEAT_GAP = 70;      // 座位中心间距
+  var TABLE = { x: 220, y: 185, w: 420, h: 100 };
+  var ROOM = { x: 24, y: 24, w: 772, h: 422 };
+
+  // 上排 y（长边 A）= TABLE.y - SEAT - 28 = 101
+  var TOP_Y = TABLE.y - SEAT - 28;
+  // 下排 y（长边 B）= TABLE.y + TABLE.h + 28 = 313
+  var BOTTOM_Y = TABLE.y + TABLE.h + 28;
+  // 短边 x = TABLE.x + TABLE.w + 30 = 670
+  var SHORT_X = TABLE.x + TABLE.w + 30;
+  // 短边垂直中点 = TABLE 中点
+  var SHORT_CY = TABLE.y + TABLE.h / 2;
+
+  /* ---- 行宽计算 ---- */
+  function rowWidth(n) {
+    return n * SEAT + (n - 1) * (SEAT_GAP - SEAT);
+  }
+
+  /* ---- 单座位 SVG 字符串 ---- */
+  function renderSeat(x, y, num) {
+    var filled = num != null;
+    var rect = "";
+    if (filled) {
+      rect = '<rect x="' + x + '" y="' + y +
+             '" width="' + SEAT + '" height="' + SEAT + '" rx="8"' +
+             ' fill="var(--color-primary)" />';
+    } else {
+      rect = '<rect x="' + x + '" y="' + y +
+             '" width="' + SEAT + '" height="' + SEAT + '" rx="8"' +
+             ' fill="transparent" stroke="var(--color-border)" stroke-width="2"' +
+             ' stroke-dasharray="5 4" />';
+    }
+    var text = "";
+    if (filled) {
+      text = '<text x="' + (x + SEAT / 2) + '" y="' + (y + SEAT / 2) + '"' +
+             ' text-anchor="middle" dominant-baseline="central"' +
+             ' font-size="24" font-weight="600"' +
+             ' fill="var(--color-primary-foreground)">' + num + '</text>';
+    }
+    return rect + text;
+  }
+
+  /* ---- 渲染一侧长边座位 + 标签 ---- */
+  function renderSide(seats, side) {
+    var n = seats.length;
+    var startX = TABLE.x + (TABLE.w - rowWidth(n)) / 2;
+    var y = side === "top" ? TOP_Y : BOTTOM_Y;
+    var labelY, labelText, labelFill;
+    if (side === "top") {
+      labelY = y - 14;
+      labelText = "长边 A · 客方（面门为尊）";
+      labelFill = "var(--color-primary)";
+    } else {
+      labelY = y + SEAT + 18;
+      labelText = "长边 B · 主方（门侧）";
+      labelFill = "var(--color-accent-foreground)";
+    }
+
+    var html = "";
+    for (var i = 0; i < n; i++) {
+      html += renderSeat(startX + i * SEAT_GAP, y, seats[i]);
+    }
+    // 标签
+    html += '<text x="' + (TABLE.x + TABLE.w / 2) + '" y="' + labelY + '"' +
+            ' text-anchor="middle" font-size="13" font-weight="600"' +
+            ' fill="' + labelFill + '">' + labelText + '</text>';
+    return html;
+  }
+
+  /* ---- 渲染短边竖排 2 座（占位，均为空位） ---- */
+  function renderShortSide() {
+    var y1 = SHORT_CY - SEAT - 8;
+    var y2 = SHORT_CY + 8;
+    var html = renderSeat(SHORT_X, y1, null) + renderSeat(SHORT_X, y2, null);
+    // 标签
+    var labelY = y2 + SEAT + 16;
+    html += '<text x="' + (SHORT_X + SEAT / 2) + '" y="' + labelY + '"' +
+            ' text-anchor="middle" font-size="11"' +
+            ' fill="var(--color-muted-foreground)">短边占位</text>';
+    return html;
+  }
+
+  /* ---- 汇总渲染 → 写入 DOM ---- */
+  function refreshSVG(guestArr, hostArr) {
+    var html = renderSide(guestArr, "top") +
+               renderSide(hostArr, "bottom") +
+               renderShortSide();
+    document.getElementById("seats-layer").innerHTML = html;
+  }
+
+  /* ---- 初始化：mock 数据（客 5 · 主 5） ---- */
+  var mockGuest = [null, null, 5, 3, 1, 2, 4, null];
+  var mockHost  = [null, null, 5, 3, 1, 2, 4, null];
+
+  refreshSVG(mockGuest, mockHost);
+})();
+</script>
 
 </body>
 </html>
