@@ -376,7 +376,22 @@ body {
   border-color: var(--color-primary);
 }
 
-/* ----- 暂未实现占位提示 ----- */
+/* ----- SVG 平面图容器 ----- */
+.svg-wrapper {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background-color: oklch(0.96 0.008 240 / 0.4);
+  padding: 16px;
+}
+
+.svg-wrapper svg {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
 .placeholder-note {
   display: block;
   margin-top: 8px;
@@ -486,15 +501,63 @@ body {
 
     <!-- ========== 右侧栏 #right-panel ========== -->
     <section id="right-panel">
-      <!-- 预览区（T3/T4 实现 SVG） -->
+      <!-- 预览区（T3 静态 SVG + T4 座位渲染） -->
       <div id="preview-card" class="card">
         <div class="card-header">
           <h2 class="card-title">平面图预览</h2>
           <p class="card-desc">座位自动排列，实时更新。</p>
         </div>
-        <div style="min-height:320px;display:flex;align-items:center;justify-content:center">
-          <span class="placeholder-note">SVG 平面图待 T3、T4 实现</span>
+        <div class="svg-wrapper">
+          <svg viewBox="0 0 820 470" role="img" aria-label="会议室座次平面图预览">
+            <!-- ====== 房间外墙 ====== -->
+            <rect x="24" y="24" width="772" height="422"
+                  fill="none" stroke="var(--color-border)" stroke-width="2" />
+
+            <!-- ====== 会议桌主体 ====== -->
+            <rect x="220" y="185" width="420" height="100" rx="10"
+                  fill="var(--color-card)" stroke="var(--color-border)" stroke-width="2" />
+            <text x="430" y="235"
+                  text-anchor="middle" dominant-baseline="central"
+                  font-size="18" font-weight="600"
+                  fill="var(--color-muted-foreground)" letter-spacing="4">
+              会 议 桌
+            </text>
+
+            <!-- ====== 电子白板（左侧竖排，无座） ====== -->
+            <rect x="88" y="155" width="30" height="160" rx="6"
+                  fill="var(--color-secondary)" stroke="var(--color-border)" stroke-width="1.5" />
+            <text x="103" y="235"
+                  text-anchor="middle" dominant-baseline="central"
+                  font-size="13" font-weight="600"
+                  fill="var(--color-muted-foreground)"
+                  writing-mode="vertical-rl" letter-spacing="2">
+              电子白板（无座）
+            </text>
+
+            <!-- ====== 门 1（左下角） ====== -->
+            <rect x="32" y="408" width="110" height="30" rx="6"
+                  fill="var(--color-accent)" />
+            <text x="87" y="423"
+                  text-anchor="middle" dominant-baseline="central"
+                  font-size="13" font-weight="600"
+                  fill="var(--color-accent-foreground)" letter-spacing="2">
+              门 1
+            </text>
+
+            <!-- ====== 门 2（右下角） ====== -->
+            <rect x="678" y="408" width="110" height="30" rx="6"
+                  fill="var(--color-accent)" />
+            <text x="733" y="423"
+                  text-anchor="middle" dominant-baseline="central"
+                  font-size="13" font-weight="600"
+                  fill="var(--color-accent-foreground)" letter-spacing="2">
+              门 2
+            </text>
+
+            <!-- 座位将在 T4 动态渲染 -->
+          </svg>
         </div>
+        <span class="placeholder-note" style="margin-top:12px">▲ 座位将在 T4 动态渲染</span>
       </div>
 
       <!-- 操作按钮区（T6/T9 实现交互） -->
