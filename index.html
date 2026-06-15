@@ -696,24 +696,23 @@ body {
     document.getElementById("seats-layer").innerHTML = html;
   }
 
-  /* ---- 座次排列算法（ARCHITECTURE.md §4 + 桌牌摆放规则.txt） ----
+  /* ---- 座次排列算法（1号位、2号位定位规则_修正版.md） ----
      双方各自以左为尊独立排列
        客方面门 → 左=俯视图右侧(大索引)
        主方面白板 → 左=俯视图左侧(小索引)
      填位顺序（中心→两侧，左右交替，左优先）
        客方·索引3: [3,4,2,5,1,6,0,7]    客方·索引4: [4,5,3,6,2,7,1,0]
        主方·索引3: [3,2,4,1,5,0,6,7]    主方·索引4: [4,3,5,2,6,1,7,0]
-     1号位规则：
-       双方均为偶数 → 客方1号索引3、主方1号索引4（1&2各自居中，交叉相对）
-       其余情况     → 双方1号同在索引3（保证1号正对 A[i]↔B[i]） */
-  function arrangeSeats(n, isHost, bothEven) {
+     1号位规则（三场景判定）：
+       双方均偶           → 客3主4（交叉对坐）
+       主满(8)客不满(<8)  → 双方4（以主方为准）
+       客满(8)主不满(<8)  → 双方3（以客方为准）
+       均不满员(≤7)       → 双方3（客方1号优先第4位） */
+  function arrangeSeats(n, isHost, oneIdx) {
     // 输入规范化：非整数向下取整
     n = Math.floor(n);
     if (n < 0) { console.warn("arrangeSeats: n=" + n + " < 0，clamp 到 0"); n = 0; }
     if (n > 8) { console.warn("arrangeSeats: n=" + n + " > 8，clamp 到 8"); n = 8; }
-
-    // 双方均为偶数时主方1号在索引4（1&2各自居中），其余情况1号同在索引3
-    var oneIdx = (bothEven && isHost) ? 4 : 3;
 
     // 四种填位顺序
     var fillOrders = {
@@ -744,25 +743,40 @@ body {
     hostCount: 5
   };
 
-  /* ---- 判断双方是否均为偶数 ---- */
-  function isBothEven() {
-    return state.guestCount % 2 === 0 && state.hostCount % 2 === 0;
+  /* ---- 1号位定位规则（1号位、2号位定位规则_修正版.md） ----
+     三场景判定：
+       双方均偶           → 客3主4（交叉对坐）
+       主满(8)客不满(<8)  → 双方4（以主方为准）
+       客满(8)主不满(<8)  → 双方3（以客方为准）
+       均不满员(≤7)       → 双方3（客方1号优先第4位） */
+  function getOneIdx(isHost) {
+    var guestEven = state.guestCount % 2 === 0;
+    var hostEven = state.hostCount % 2 === 0;
+    // 情况二：双方均偶 → 交叉对坐
+    if (guestEven && hostEven) return isHost ? 4 : 3;
+    // 情况一·主满客不满 → 第5位(idx4)
+    if (state.hostCount === 8 && state.guestCount < 8) return 4;
+    // 情况一·客满主不满 → 第4位(idx3)
+    if (state.guestCount === 8 && state.hostCount < 8) return 3;
+    // 情况一·均不满员 → 第4位(idx3)
+    return 3;
   }
 
   /* ---- 获取 1 号对坐状态描述 ---- */
   function getPairStatus() {
     if (state.guestCount === 0 && state.hostCount === 0) return '双方均无人就座';
     if (state.guestCount === 0 || state.hostCount === 0) return '单方就座，无对坐关系';
-    if (isBothEven()) return '双方均偶，1&2 各自居中（交叉相对）';
+    var guestEven = state.guestCount % 2 === 0;
+    var hostEven = state.hostCount % 2 === 0;
+    if (guestEven && hostEven) return '双方均偶，1&2 各自居中（交叉相对）';
     return '双方 1 号正对 ✓';
   }
 
   /* ---- 全局刷新：排列算法 + SVG + 摘要 + 图例 + 按钮态 ---- */
   function renderAll() {
-    var bothEven = isBothEven();
     refreshSVG(
-      arrangeSeats(state.guestCount, false, bothEven),
-      arrangeSeats(state.hostCount, true, bothEven)
+      arrangeSeats(state.guestCount, false, getOneIdx(false)),
+      arrangeSeats(state.hostCount, true, getOneIdx(true))
     );
 
     // 人数摘要
