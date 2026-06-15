@@ -488,13 +488,56 @@ body {
         </div>
       </div>
 
-      <!-- 座次规则说明占位（T7 实现） -->
+      <!-- 座次规则说明（T7） -->
       <div id="rules-card" class="card">
         <div class="card-header">
           <h2 class="card-title">座次规则</h2>
           <p class="card-desc">自动排列遵循以下礼仪规则。</p>
         </div>
-        <span class="placeholder-note">▲ 5 条排序规则待 T7 实现</span>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">1</span>
+            <div>
+              <div style="font-size:14px;font-weight:500">以左为尊</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">2 号在 1 号的左手边，3 号在右手边，依次左右交替。</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">2</span>
+            <div>
+              <div style="font-size:14px;font-weight:500">居中为尊</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">1 号永远居中；偶数时 1 号、2 号同时居中。</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">3</span>
+            <div>
+              <div style="font-size:14px;font-weight:500">面门为尊</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">客方面对门（长边 A），主方背对门（长边 B）。</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">4</span>
+            <div>
+              <div style="font-size:14px;font-weight:500">主客分明</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">客方坐长边 A，主方坐长边 B，互不混排。</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">5</span>
+            <div>
+              <div style="font-size:14px;font-weight:500">对坐规则</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">奇数时双方 1 号正对；偶数时交叉对坐（客 1↔主 2、客 2↔主 1）。</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">6</span>
+            <div>
+              <div style="font-size:14px;font-weight:500">满员优先</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">任一方满 8 人时，以满员方为准确定 1 号位。</div>
+            </div>
+          </div>
+        </div>
       </div>
     </aside>
 
