@@ -444,13 +444,13 @@ body {
 
     <!-- ========== 左侧栏 #left-panel ========== -->
     <aside id="left-panel">
-      <!-- 输入区（T6 实现交互） -->
+      <!-- 输入区 -->
       <div id="input-card" class="card">
         <div class="card-header">
           <h2 class="card-title">人数设置</h2>
           <p class="card-desc">输入客方、主方人数，实时生成平面图。</p>
         </div>
-        <!-- 客方步进器（静态示意，交互待 T6） -->
+        <!-- 客方步进器 -->
         <div class="stepper" style="margin-bottom:16px">
           <div class="stepper-header">
             <span class="stepper-dot primary"></span>
@@ -458,13 +458,13 @@ body {
             <span class="stepper-sublabel">长边 A · 上座 · 面门</span>
           </div>
           <div class="stepper-body">
-            <button class="stepper-btn" disabled>−</button>
-            <input class="stepper-input" type="text" value="5" readonly>
-            <button class="stepper-btn">+</button>
+            <button id="guest-dec" class="stepper-btn" disabled>−</button>
+            <input id="guest-input" class="stepper-input" type="text" value="5" maxlength="1" inputmode="numeric">
+            <button id="guest-inc" class="stepper-btn">+</button>
           </div>
           <p class="stepper-hint">范围 0 – 8 人</p>
         </div>
-        <!-- 主方步进器（静态示意） -->
+        <!-- 主方步进器 -->
         <div class="stepper" style="margin-bottom:16px">
           <div class="stepper-header">
             <span class="stepper-dot accent"></span>
@@ -472,21 +472,20 @@ body {
             <span class="stepper-sublabel">长边 B · 门侧</span>
           </div>
           <div class="stepper-body">
-            <button class="stepper-btn" disabled>−</button>
-            <input class="stepper-input" type="text" value="5" readonly>
-            <button class="stepper-btn">+</button>
+            <button id="host-dec" class="stepper-btn">−</button>
+            <input id="host-input" class="stepper-input" type="text" value="5" maxlength="1" inputmode="numeric">
+            <button id="host-inc" class="stepper-btn">+</button>
           </div>
           <p class="stepper-hint">范围 0 – 8 人</p>
         </div>
-        <!-- 快捷案例按钮组（静态示意） -->
+        <!-- 快捷案例按钮组 -->
         <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <span class="preset-chip active">客5 · 主5</span>
-          <span class="preset-chip">客3 · 主3</span>
-          <span class="preset-chip">客8 · 主8</span>
-          <span class="preset-chip">客4 · 主6</span>
-          <span class="preset-chip">客0 · 主2</span>
+          <span class="preset-chip active" data-guest="5" data-host="5">客5 · 主5</span>
+          <span class="preset-chip" data-guest="3" data-host="3">客3 · 主3</span>
+          <span class="preset-chip" data-guest="8" data-host="8">客8 · 主8</span>
+          <span class="preset-chip" data-guest="4" data-host="6">客4 · 主6</span>
+          <span class="preset-chip" data-guest="0" data-host="2">客0 · 主2</span>
         </div>
-        <span class="placeholder-note">▲ 交互逻辑待 T6 实现（目前为静态展示）</span>
       </div>
 
       <!-- 座次规则说明占位（T7 实现） -->
@@ -501,11 +500,11 @@ body {
 
     <!-- ========== 右侧栏 #right-panel ========== -->
     <section id="right-panel">
-      <!-- 预览区（T3 静态 SVG + T4 座位渲染） -->
+      <!-- 预览区 -->
       <div id="preview-card" class="card">
         <div class="card-header">
           <h2 class="card-title">平面图预览</h2>
-          <p class="card-desc">座位自动排列，实时更新。</p>
+          <p id="summary-text" class="card-desc">客方 5 人 | 主方 5 人 | 合计 10 人就座</p>
         </div>
         <div class="svg-wrapper">
           <svg viewBox="0 0 820 470" role="img" aria-label="会议室座次平面图预览">
@@ -567,16 +566,15 @@ body {
             <span style="display:inline-block;width:14px;height:14px;border-radius:2px;border:2px dashed var(--color-border)"></span>
             空位占位
           </span>
-          <span>客 5 人 · 主 5 人 ｜ 双方 1 号正对 ✓</span>
+          <span id="legend-text">客 5 人 · 主 5 人 ｜ 双方 1 号正对 ✓</span>
         </div>
       </div>
 
-      <!-- 操作按钮区（T6/T9 实现交互） -->
+      <!-- 操作按钮区（下载功能待 T9 实现） -->
       <div id="actions-area" class="card">
         <div style="display:flex;gap:12px;align-items:center">
-          <button class="btn btn-primary">下载 SVG</button>
-          <button class="btn btn-secondary">打印 / 导出 PDF</button>
-          <span class="placeholder-note" style="margin-top:0">（待 T6/T9 实现功能）</span>
+          <button id="btn-download" class="btn btn-primary">下载 SVG</button>
+          <button id="btn-print" class="btn btn-secondary">打印 / 导出 PDF</button>
         </div>
       </div>
     </section>
@@ -649,10 +647,10 @@ body {
   /* ---- 渲染一侧长边座位 + 标签 ----
      对坐关系：A[i] ↔ B[i]（同索引同 x 坐标）
      客方面门（左=俯视图右侧/大索引），主方面白板（左=俯视图左侧/小索引）
-     双方各自以左为尊排列，1号位由主方人数决定 */
+     双方各自以左为尊排列，1号位由双方奇偶决定
+     空位始终显示虚线框 */
   function renderSide(seats, side) {
     var n = seats.length;
-    var startX = TABLE.x + (TABLE.w - rowWidth(n)) / 2;
     var y = side === "top" ? TOP_Y : BOTTOM_Y;
     var labelY, labelText, labelFill;
     if (side === "top") {
@@ -666,10 +664,11 @@ body {
     }
 
     var html = "";
+    var startX = TABLE.x + (TABLE.w - rowWidth(n)) / 2;
     for (var i = 0; i < n; i++) {
       html += renderSeat(startX + i * SEAT_GAP, y, seats[i]);
     }
-    // 标签
+    // 标签始终显示
     html += '<text x="' + (TABLE.x + TABLE.w / 2) + '" y="' + labelY + '"' +
             ' text-anchor="middle" font-size="13" font-weight="600"' +
             ' fill="' + labelFill + '">' + labelText + '</text>';
@@ -739,17 +738,152 @@ body {
     return result;
   }
 
-  /* ---- 初始化：客 5 · 主 5（均为奇数 → 1号同在索引3） ----
-     客方 [3,4,2,5,1] → [null,5,3,1,2,4,null,null]，1号索引3
-     主方 [3,2,4,1,5] → [null,4,2,1,3,5,null,null]，1号索引3
-     A[3]↔B[3] 正对 ✓ */
-  var initGuest = 5;
-  var initHost = 5;
-  var initBothEven = (initGuest % 2 === 0) && (initHost % 2 === 0);
-  refreshSVG(
-    arrangeSeats(initGuest, false, initBothEven),
-    arrangeSeats(initHost, true, initBothEven)
-  );
+  /* ---- 状态 ---- */
+  var state = {
+    guestCount: 5,
+    hostCount: 5
+  };
+
+  /* ---- 判断双方是否均为偶数 ---- */
+  function isBothEven() {
+    return state.guestCount % 2 === 0 && state.hostCount % 2 === 0;
+  }
+
+  /* ---- 获取 1 号对坐状态描述 ---- */
+  function getPairStatus() {
+    if (state.guestCount === 0 && state.hostCount === 0) return '双方均无人就座';
+    if (state.guestCount === 0 || state.hostCount === 0) return '单方就座，无对坐关系';
+    if (isBothEven()) return '双方均偶，1&2 各自居中（交叉相对）';
+    return '双方 1 号正对 ✓';
+  }
+
+  /* ---- 全局刷新：排列算法 + SVG + 摘要 + 图例 + 按钮态 ---- */
+  function renderAll() {
+    var bothEven = isBothEven();
+    refreshSVG(
+      arrangeSeats(state.guestCount, false, bothEven),
+      arrangeSeats(state.hostCount, true, bothEven)
+    );
+
+    // 人数摘要
+    var total = state.guestCount + state.hostCount;
+    document.getElementById('summary-text').textContent =
+      '客方 ' + state.guestCount + ' 人 | 主方 ' + state.hostCount +
+      ' 人 | 合计 ' + total + ' 人就座';
+
+    // 图例状态文字
+    document.getElementById('legend-text').textContent =
+      '客 ' + state.guestCount + ' 人 · 主 ' + state.hostCount +
+      ' 人 ｜ ' + getPairStatus();
+
+    // 客方步进器按钮态
+    document.getElementById('guest-dec').disabled = state.guestCount <= 0;
+    document.getElementById('guest-inc').disabled = state.guestCount >= 8;
+    document.getElementById('guest-input').value = state.guestCount;
+
+    // 主方步进器按钮态
+    document.getElementById('host-dec').disabled = state.hostCount <= 0;
+    document.getElementById('host-inc').disabled = state.hostCount >= 8;
+    document.getElementById('host-input').value = state.hostCount;
+
+    // 快捷案例按钮选中态
+    var chips = document.querySelectorAll('.preset-chip');
+    for (var c = 0; c < chips.length; c++) {
+      var chip = chips[c];
+      var g = parseInt(chip.getAttribute('data-guest'), 10);
+      var h = parseInt(chip.getAttribute('data-host'), 10);
+      if (g === state.guestCount && h === state.hostCount) {
+        chip.classList.add('active');
+      } else {
+        chip.classList.remove('active');
+      }
+    }
+  }
+
+  /* ---- 步进器操作 ---- */
+  function changeGuest(delta) {
+    var v = state.guestCount + delta;
+    if (v < 0) v = 0;
+    if (v > 8) v = 8;
+    state.guestCount = v;
+    renderAll();
+  }
+
+  function changeHost(delta) {
+    var v = state.hostCount + delta;
+    if (v < 0) v = 0;
+    if (v > 8) v = 8;
+    state.hostCount = v;
+    renderAll();
+  }
+
+  /* ---- 输入框直接键入（非法值 clamp 到边界，非数字恢复原值） ---- */
+  function handleGuestInput(raw) {
+    var v = parseInt(raw, 10);
+    if (isNaN(v)) { renderAll(); return; }
+    if (v < 0) v = 0;
+    if (v > 8) v = 8;
+    state.guestCount = v;
+    renderAll();
+  }
+
+  function handleHostInput(raw) {
+    var v = parseInt(raw, 10);
+    if (isNaN(v)) { renderAll(); return; }
+    if (v < 0) v = 0;
+    if (v > 8) v = 8;
+    state.hostCount = v;
+    renderAll();
+  }
+
+  /* ---- 快捷案例 ---- */
+  function applyPreset(g, h) {
+    state.guestCount = g;
+    state.hostCount = h;
+    renderAll();
+  }
+
+  /* ---- 事件绑定 ---- */
+  function bindEvents() {
+    // 客方步进器
+    document.getElementById('guest-dec').addEventListener('click', function () {
+      changeGuest(-1);
+    });
+    document.getElementById('guest-inc').addEventListener('click', function () {
+      changeGuest(1);
+    });
+    document.getElementById('guest-input').addEventListener('change', function () {
+      handleGuestInput(this.value);
+    });
+
+    // 主方步进器
+    document.getElementById('host-dec').addEventListener('click', function () {
+      changeHost(-1);
+    });
+    document.getElementById('host-inc').addEventListener('click', function () {
+      changeHost(1);
+    });
+    document.getElementById('host-input').addEventListener('change', function () {
+      handleHostInput(this.value);
+    });
+
+    // 快捷案例按钮
+    var chips = document.querySelectorAll('.preset-chip');
+    for (var i = 0; i < chips.length; i++) {
+      (function (chip) {
+        var g = parseInt(chip.getAttribute('data-guest'), 10);
+        var h = parseInt(chip.getAttribute('data-host'), 10);
+        chip.addEventListener('click', function () {
+          applyPreset(g, h);
+        });
+      })(chips[i]);
+    }
+  }
+
+  /* ---- 页面初始化 ---- */
+  bindEvents();
+  // 首次渲染：客 5 · 主 5（均为奇数 → 1号同在索引3，A[3]↔B[3] 正对 ✓）
+  renderAll();
 })();
 </script>
 
