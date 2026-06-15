@@ -567,7 +567,7 @@ body {
             <span style="display:inline-block;width:14px;height:14px;border-radius:2px;border:2px dashed var(--color-border)"></span>
             空位占位
           </span>
-          <span>※ Mock 数据：客 5 · 主 5</span>
+          <span>客 5 人 · 主 5 人 ｜ 双方 1 号正对 ✓</span>
         </div>
       </div>
 
@@ -646,7 +646,10 @@ body {
     return rect + text;
   }
 
-  /* ---- 渲染一侧长边座位 + 标签 ---- */
+  /* ---- 渲染一侧长边座位 + 标签 ----
+     对坐关系：A[i] ↔ B[i]（同索引同 x 坐标）
+     客方面门（左=俯视图右侧/大索引），主方面白板（左=俯视图左侧/小索引）
+     双方各自以左为尊排列，1号位由主方人数决定 */
   function renderSide(seats, side) {
     var n = seats.length;
     var startX = TABLE.x + (TABLE.w - rowWidth(n)) / 2;
@@ -694,11 +697,59 @@ body {
     document.getElementById("seats-layer").innerHTML = html;
   }
 
-  /* ---- 初始化：mock 数据（客 5 · 主 5） ---- */
-  var mockGuest = [null, null, 5, 3, 1, 2, 4, null];
-  var mockHost  = [null, null, 5, 3, 1, 2, 4, null];
+  /* ---- 座次排列算法（ARCHITECTURE.md §4 + 桌牌摆放规则.txt） ----
+     双方各自以左为尊独立排列
+       客方面门 → 左=俯视图右侧(大索引)
+       主方面白板 → 左=俯视图左侧(小索引)
+     填位顺序（中心→两侧，左右交替，左优先）
+       客方·索引3: [3,4,2,5,1,6,0,7]    客方·索引4: [4,5,3,6,2,7,1,0]
+       主方·索引3: [3,2,4,1,5,0,6,7]    主方·索引4: [4,3,5,2,6,1,7,0]
+     1号位规则：
+       双方均为偶数 → 客方1号索引3、主方1号索引4（1&2各自居中，交叉相对）
+       其余情况     → 双方1号同在索引3（保证1号正对 A[i]↔B[i]） */
+  function arrangeSeats(n, isHost, bothEven) {
+    // 输入规范化：非整数向下取整
+    n = Math.floor(n);
+    if (n < 0) { console.warn("arrangeSeats: n=" + n + " < 0，clamp 到 0"); n = 0; }
+    if (n > 8) { console.warn("arrangeSeats: n=" + n + " > 8，clamp 到 8"); n = 8; }
 
-  refreshSVG(mockGuest, mockHost);
+    // 双方均为偶数时主方1号在索引4（1&2各自居中），其余情况1号同在索引3
+    var oneIdx = (bothEven && isHost) ? 4 : 3;
+
+    // 四种填位顺序
+    var fillOrders = {
+      guest: {
+        3: [3, 4, 2, 5, 1, 6, 0, 7],
+        4: [4, 5, 3, 6, 2, 7, 1, 0]
+      },
+      host: {
+        3: [3, 2, 4, 1, 5, 0, 6, 7],
+        4: [4, 3, 5, 2, 6, 1, 7, 0]
+      }
+    };
+
+    var order = fillOrders[isHost ? "host" : "guest"][oneIdx];
+
+    // 取填位顺序前 n 个位置填入 1..n
+    var result = new Array(8);
+    for (var j = 0; j < 8; j++) { result[j] = null; }
+    for (var i = 0; i < n; i++) {
+      result[order[i]] = i + 1;
+    }
+    return result;
+  }
+
+  /* ---- 初始化：客 5 · 主 5（均为奇数 → 1号同在索引3） ----
+     客方 [3,4,2,5,1] → [null,5,3,1,2,4,null,null]，1号索引3
+     主方 [3,2,4,1,5] → [null,4,2,1,3,5,null,null]，1号索引3
+     A[3]↔B[3] 正对 ✓ */
+  var initGuest = 5;
+  var initHost = 5;
+  var initBothEven = (initGuest % 2 === 0) && (initHost % 2 === 0);
+  refreshSVG(
+    arrangeSeats(initGuest, false, initBothEven),
+    arrangeSeats(initHost, true, initBothEven)
+  );
 })();
 </script>
 
