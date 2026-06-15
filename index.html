@@ -378,11 +378,92 @@ body {
 
 /* ----- SVG 平面图容器 ----- */
 .svg-wrapper {
+  position: relative;
   overflow-x: auto;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   background-color: oklch(0.96 0.008 240 / 0.4);
   padding: 16px;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+
+.svg-wrapper.custom-active {
+  border-color: var(--color-ring);
+  box-shadow: 0 0 0 3px oklch(0.5 0.13 235 / 0.25);
+}
+
+/* ----- 姓名编辑输入框（覆盖在 SVG 座位上方） ----- */
+.seat-editor-input {
+  position: absolute;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  border: 2px solid var(--color-ring);
+  border-radius: 6px;
+  background: var(--color-card);
+  color: var(--color-foreground);
+  z-index: 10;
+  display: none;
+  padding: 0 4px;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+/* ----- 拖拽幽灵 ----- */
+.drag-ghost {
+  position: absolute;
+  z-index: 100;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0.85;
+}
+
+.drag-ghost .ghost-seat {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary-foreground);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.drag-ghost .ghost-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* ----- 自定义模式下座位交互 ----- */
+.custom-active .seat-group {
+  cursor: grab;
+  transition: opacity 150ms;
+}
+
+.custom-active .seat-group:hover .seat-rect-filled {
+  filter: brightness(0.88);
+}
+
+.custom-active .seat-group.empty-slot {
+  cursor: crosshair;
+}
+
+.custom-active .seat-group.empty-slot:hover .seat-rect-empty {
+  stroke: var(--color-ring);
+  stroke-width: 2.5;
+  stroke-dasharray: 5 4;
+}
+
+.custom-active .seat-group.drag-source .seat-rect-filled {
+  opacity: 0.35;
 }
 
 .svg-wrapper svg {
@@ -599,6 +680,8 @@ body {
             <!-- 座位由 JS 动态渲染 -->
             <g id="seats-layer"></g>
           </svg>
+          <!-- 姓名编辑输入框（自定义模式下使用） -->
+          <input id="seat-editor" class="seat-editor-input" maxlength="10" />
         </div>
         <div class="legend" style="margin-top:16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:16px;font-size:12px;color:var(--color-muted-foreground)">
           <span style="display:flex;align-items:center;gap:6px">
@@ -611,15 +694,13 @@ body {
           </span>
           <span id="legend-text">客 5 人 · 主 5 人 ｜ 双方 1 号正对 ✓</span>
         </div>
-      </div>
-
-      <!-- 操作按钮区（下载功能待 T9 实现） -->
-      <div id="actions-area" class="card">
-        <div style="display:flex;gap:12px;align-items:center">
-          <button id="btn-download" class="btn btn-primary">下载 SVG</button>
-          <button id="btn-print" class="btn btn-secondary">打印 / 导出 PDF</button>
+        <!-- 操作按钮 -->
+        <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
+          <button id="btn-download" class="btn btn-primary">下载 PNG</button>
+          <button id="btn-custom" class="btn btn-secondary">自定义微调</button>
         </div>
       </div>
+
     </section>
 
   </div><!-- /#main -->
@@ -634,7 +715,7 @@ body {
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
           <polyline points="3,8 6,11 13,5" />
         </svg>
-        <span style="font-size:14px;color:var(--color-muted-foreground)">导出的 SVG 可拖入 PPT / Word / Illustrator 二次编辑</span>
+        <span style="font-size:14px;color:var(--color-muted-foreground)">导出的 PNG 可导入飞书画板二次编辑，也可拖入 PPT / Word</span>
       </div>
       <div style="display:flex;gap:10px;align-items:flex-start">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
@@ -677,33 +758,82 @@ body {
   // 短边垂直中点 = TABLE 中点
   var SHORT_CY = TABLE.y + TABLE.h / 2;
 
+  /* ---- DOM 引用 ---- */
+  var svgEl = document.querySelector('.svg-wrapper svg');
+  var wrapperEl = document.querySelector('.svg-wrapper');
+  var seatsLayer = document.getElementById('seats-layer');
+  var seatEditor = document.getElementById('seat-editor');
+
   /* ---- 行宽计算 ---- */
   function rowWidth(n) {
     return n * SEAT + (n - 1) * (SEAT_GAP - SEAT);
   }
 
-  /* ---- 单座位 SVG 字符串 ---- */
-  function renderSeat(x, y, num) {
+  /* ---- 单座位 SVG 字符串 ----
+     side: 'guest' | 'host', index: 0-7
+     自定义模式下有人座位渲染姓名标签（外侧） */
+  function renderSeat(x, y, num, side, index) {
     var filled = num != null;
-    var rect = "";
+    var key = (side || '') + '-' + (index != null ? index : '');
+    var displayLabel = num; // SVG 方块内显示的数字
+    var nameLabel = '';     // 姓名标签（外侧）
+
+    // 自定义模式下：有人座位可能显示姓名标签
+    if (customMode && filled && side && index != null) {
+      if (customNames[key]) {
+        nameLabel = customNames[key];
+      }
+    }
+
+    var fillClass = filled ? ' seat-rect-filled' : ' seat-rect-empty';
+    var seatClass = filled ? 'seat-group' : 'seat-group empty-slot';
+
+    var html = '<g class="' + seatClass + '" data-side="' + (side || '') + '" data-index="' + (index != null ? index : '') + '">';
+
     if (filled) {
-      rect = '<rect x="' + x + '" y="' + y +
+      html += '<rect class="seat-rect-filled" x="' + x + '" y="' + y +
              '" width="' + SEAT + '" height="' + SEAT + '" rx="8"' +
              ' fill="var(--color-primary)" />';
     } else {
-      rect = '<rect x="' + x + '" y="' + y +
+      html += '<rect class="seat-rect-empty" x="' + x + '" y="' + y +
              '" width="' + SEAT + '" height="' + SEAT + '" rx="8"' +
              ' fill="transparent" stroke="var(--color-border)" stroke-width="2"' +
              ' stroke-dasharray="5 4" />';
     }
-    var text = "";
+
     if (filled) {
-      text = '<text x="' + (x + SEAT / 2) + '" y="' + (y + SEAT / 2) + '"' +
+      html += '<text x="' + (x + SEAT / 2) + '" y="' + (y + SEAT / 2) + '"' +
              ' text-anchor="middle" dominant-baseline="central"' +
              ' font-size="24" font-weight="600"' +
-             ' fill="var(--color-primary-foreground)">' + num + '</text>';
+             ' fill="var(--color-primary-foreground)"' +
+             ' pointer-events="none">' + displayLabel + '</text>';
     }
-    return rect + text;
+
+    // 姓名标签（自定义模式下的外侧标签）
+    if (nameLabel) {
+      var nameY;
+      if (side === 'guest') {
+        // 上排：姓名在座位上方
+        nameY = y - 8;
+      } else {
+        // 下排：姓名在座位下方
+        nameY = y + SEAT + 14;
+      }
+      // 截断过长姓名（最多 4 个中文字符）
+      var shortName = nameLabel.length > 4 ? nameLabel.substring(0, 4) : nameLabel;
+      html += '<text x="' + (x + SEAT / 2) + '" y="' + nameY + '"' +
+             ' text-anchor="middle" font-size="11" font-weight="500"' +
+             ' fill="var(--color-muted-foreground)"' +
+             ' pointer-events="none">' + escapeXml(shortName) + '</text>';
+    }
+
+    html += '</g>';
+    return html;
+  }
+
+  /* ---- XML 转义 ---- */
+  function escapeXml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   /* ---- 渲染一侧长边座位 + 标签 ----
@@ -713,22 +843,24 @@ body {
      空位始终显示虚线框 */
   function renderSide(seats, side) {
     var n = seats.length;
-    var y = side === "top" ? TOP_Y : BOTTOM_Y;
+    var y = side === 'top' ? TOP_Y : BOTTOM_Y;
+    var sideName = side === 'top' ? 'guest' : 'host';
     var labelY, labelText, labelFill;
-    if (side === "top") {
-      labelY = y - 14;
-      labelText = "长边 A · 客方（面门为尊）";
-      labelFill = "var(--color-primary)";
+    if (side === 'top') {
+      // 上排标签位置上移以留出姓名标签空间
+      labelY = y - 20;
+      labelText = '长边 A · 客方（面门为尊）';
+      labelFill = 'var(--color-primary)';
     } else {
-      labelY = y + SEAT + 18;
-      labelText = "长边 B · 主方（门侧）";
-      labelFill = "var(--color-accent-foreground)";
+      labelY = y + SEAT + 26;
+      labelText = '长边 B · 主方（门侧）';
+      labelFill = 'var(--color-accent-foreground)';
     }
 
-    var html = "";
+    var html = '';
     var startX = TABLE.x + (TABLE.w - rowWidth(n)) / 2;
     for (var i = 0; i < n; i++) {
-      html += renderSeat(startX + i * SEAT_GAP, y, seats[i]);
+      html += renderSeat(startX + i * SEAT_GAP, y, seats[i], sideName, i);
     }
     // 标签始终显示
     html += '<text x="' + (TABLE.x + TABLE.w / 2) + '" y="' + labelY + '"' +
@@ -741,7 +873,8 @@ body {
   function renderShortSide() {
     var y1 = SHORT_CY - SEAT - 8;
     var y2 = SHORT_CY + 8;
-    var html = renderSeat(SHORT_X, y1, null) + renderSeat(SHORT_X, y2, null);
+    var html = renderSeat(SHORT_X, y1, null, 'short', 0) +
+               renderSeat(SHORT_X, y2, null, 'short', 1);
     // 标签
     var labelY = y2 + SEAT + 16;
     html += '<text x="' + (SHORT_X + SEAT / 2) + '" y="' + labelY + '"' +
@@ -752,10 +885,10 @@ body {
 
   /* ---- 汇总渲染 → 写入 DOM ---- */
   function refreshSVG(guestArr, hostArr) {
-    var html = renderSide(guestArr, "top") +
-               renderSide(hostArr, "bottom") +
+    var html = renderSide(guestArr, 'top') +
+               renderSide(hostArr, 'bottom') +
                renderShortSide();
-    document.getElementById("seats-layer").innerHTML = html;
+    seatsLayer.innerHTML = html;
   }
 
   /* ---- 座次排列算法（1号位、2号位定位规则_修正版.md） ----
@@ -771,12 +904,10 @@ body {
        客满(8)主不满(<8)  → 双方3（以客方为准）
        均不满员(≤7)       → 双方3（客方1号优先第4位） */
   function arrangeSeats(n, isHost, oneIdx) {
-    // 输入规范化：非整数向下取整
     n = Math.floor(n);
-    if (n < 0) { console.warn("arrangeSeats: n=" + n + " < 0，clamp 到 0"); n = 0; }
-    if (n > 8) { console.warn("arrangeSeats: n=" + n + " > 8，clamp 到 8"); n = 8; }
+    if (n < 0) { console.warn('arrangeSeats: n=' + n + ' < 0，clamp 到 0'); n = 0; }
+    if (n > 8) { console.warn('arrangeSeats: n=' + n + ' > 8，clamp 到 8'); n = 8; }
 
-    // 四种填位顺序
     var fillOrders = {
       guest: {
         3: [3, 4, 2, 5, 1, 6, 0, 7],
@@ -788,9 +919,8 @@ body {
       }
     };
 
-    var order = fillOrders[isHost ? "host" : "guest"][oneIdx];
+    var order = fillOrders[isHost ? 'host' : 'guest'][oneIdx];
 
-    // 取填位顺序前 n 个位置填入 1..n
     var result = new Array(8);
     for (var j = 0; j < 8; j++) { result[j] = null; }
     for (var i = 0; i < n; i++) {
@@ -805,22 +935,33 @@ body {
     hostCount: 5
   };
 
-  /* ---- 1号位定位规则（1号位、2号位定位规则_修正版.md） ----
-     三场景判定：
-       双方均偶           → 客3主4（交叉对坐）
-       主满(8)客不满(<8)  → 双方4（以主方为准）
-       客满(8)主不满(<8)  → 双方3（以客方为准）
-       均不满员(≤7)       → 双方3（客方1号优先第4位） */
+  /* ---- 自定义模式状态 ---- */
+  var customMode = false;
+  var customNames = {};        // { "guest-3": "张总" }
+  var customGuestSeats = null; // 快照座位数组
+  var customHostSeats = null;
+  var customGuestCount = 0;    // 快照时人数
+  var customHostCount = 0;
+
+  /* ---- 拖拽状态 ---- */
+  var dragState = {
+    active: false,
+    side: null,
+    index: null,
+    ghost: null,
+    startX: 0,
+    startY: 0,
+    seatX: 0,  // 源座位 SVG x 坐标
+    seatY: 0   // 源座位 SVG y 坐标
+  };
+
+  /* ---- 1号位定位规则 ---- */
   function getOneIdx(isHost) {
     var guestEven = state.guestCount % 2 === 0;
     var hostEven = state.hostCount % 2 === 0;
-    // 情况二：双方均偶 → 交叉对坐
     if (guestEven && hostEven) return isHost ? 4 : 3;
-    // 情况一·主满客不满 → 第5位(idx4)
     if (state.hostCount === 8 && state.guestCount < 8) return 4;
-    // 情况一·客满主不满 → 第4位(idx3)
     if (state.guestCount === 8 && state.hostCount < 8) return 3;
-    // 情况一·均不满员 → 第4位(idx3)
     return 3;
   }
 
@@ -834,12 +975,51 @@ body {
     return '双方 1 号正对 ✓';
   }
 
-  /* ---- 全局刷新：排列算法 + SVG + 摘要 + 图例 + 按钮态 ---- */
+  /* ---- 获取当前实际使用的座位数组 ---- */
+  function getSeatArrays() {
+    if (customMode && customGuestSeats && customHostSeats) {
+      return {
+        guest: customGuestSeats.slice(),
+        host: customHostSeats.slice()
+      };
+    }
+    return {
+      guest: arrangeSeats(state.guestCount, false, getOneIdx(false)),
+      host: arrangeSeats(state.hostCount, true, getOneIdx(true))
+    };
+  }
+
+  /* ---- 计算座位在 SVG 中的坐标 ---- */
+  function getSeatSvgPos(side, index) {
+    var y = side === 'guest' ? TOP_Y : BOTTOM_Y;
+    var seats = side === 'guest' ? getSeatArrays().guest : getSeatArrays().host;
+    var n = seats.length;
+    var startX = TABLE.x + (TABLE.w - rowWidth(n)) / 2;
+    return { x: startX + index * SEAT_GAP, y: y };
+  }
+
+  /* ---- SVG viewBox → wrapper 内 CSS 像素坐标 ---- */
+  function svgToWrapper(svgX, svgY) {
+    var svgRect = svgEl.getBoundingClientRect();
+    var wrapperRect = wrapperEl.getBoundingClientRect();
+    var scale = svgRect.width / VIEW_W;
+    return {
+      x: (svgRect.left - wrapperRect.left) + (svgX - 0) * scale,
+      y: (svgRect.top - wrapperRect.top) + (svgY - 0) * scale
+    };
+  }
+
+  /* ---- 全局刷新 ---- */
   function renderAll() {
-    refreshSVG(
-      arrangeSeats(state.guestCount, false, getOneIdx(false)),
-      arrangeSeats(state.hostCount, true, getOneIdx(true))
-    );
+    // 检查人数是否与自定义快照时一致，不一致则清空自定义状态
+    if (customMode) {
+      if (state.guestCount !== customGuestCount || state.hostCount !== customHostCount) {
+        exitCustomMode(true);
+      }
+    }
+
+    var seats = getSeatArrays();
+    refreshSVG(seats.guest, seats.host);
 
     // 人数摘要
     var total = state.guestCount + state.hostCount;
@@ -893,7 +1073,7 @@ body {
     renderAll();
   }
 
-  /* ---- 输入框直接键入（非法值 clamp 到边界，非数字恢复原值） ---- */
+  /* ---- 输入框直接键入 ---- */
   function handleGuestInput(raw) {
     var v = parseInt(raw, 10);
     if (isNaN(v)) { renderAll(); return; }
@@ -916,6 +1096,370 @@ body {
   function applyPreset(g, h) {
     state.guestCount = g;
     state.hostCount = h;
+    renderAll();
+  }
+
+  /* ================================================================
+     T9 · PNG 下载功能
+     ================================================================ */
+
+  /* ---- 构建 hex 颜色映射（OKLCH → hex，兼容 PPT/Word） ---- */
+  function buildSvgColorMap() {
+    var map = {};
+    var vars = [
+      '--color-primary', '--color-primary-foreground',
+      '--color-background', '--color-foreground',
+      '--color-card', '--color-card-foreground',
+      '--color-secondary', '--color-secondary-foreground',
+      '--color-muted', '--color-muted-foreground',
+      '--color-border', '--color-input',
+      '--color-accent', '--color-accent-foreground',
+      '--color-ring'
+    ];
+    var testEl = document.createElement('div');
+    testEl.style.display = 'none';
+    document.body.appendChild(testEl);
+    for (var i = 0; i < vars.length; i++) {
+      var v = vars[i];
+      testEl.style.color = 'var(' + v + ')';
+      var comp = getComputedStyle(testEl).color;
+      // comp 格式: "rgb(r, g, b)" 或 "color(srgb ...)"
+      map[v] = rgbToHex(comp);
+    }
+    document.body.removeChild(testEl);
+    return map;
+  }
+
+  /* ---- rgb(r, g, b) 字符串 → #rrggbb ---- */
+  function rgbToHex(rgbStr) {
+    var match = rgbStr.match(/[\d.]+/g);
+    if (!match || match.length < 3) return '#000000';
+    var r = Math.round(parseFloat(match[0]));
+    var g = Math.round(parseFloat(match[1]));
+    var b = Math.round(parseFloat(match[2]));
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  /* ---- 下载 PNG ---- */
+  function downloadPNG() {
+    var colorMap = buildSvgColorMap();
+
+    // 克隆 SVG 并替换 CSS 变量
+    var svgClone = svgEl.cloneNode(true);
+    // 确保 xmlns
+    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+    // 序列化 SVG
+    var svgString = new XMLSerializer().serializeToString(svgClone);
+
+    // 替换 CSS 变量为 hex 值（用字符串替换避免正则转义问题）
+    var varNames = Object.keys(colorMap);
+    for (var i = 0; i < varNames.length; i++) {
+      var vn = varNames[i];
+      svgString = svgString.split('var(' + vn + ')').join(colorMap[vn]);
+    }
+
+    // 处理 OKLCH 直接引用（如 oklch(0.96 0.008 240 / 0.4)）
+    // 这些在 buildSvgColorMap 中已通过 computed style 转换
+    // 但仍有直接在属性中写 oklch 的情况
+    svgString = svgString.replace(/oklch\([^)]+\)/g, '#eef0f2');
+
+    // fill="transparent" → fill="none"
+    svgString = svgString.replace(/fill="transparent"/g, 'fill="none"');
+
+    // 构建 Blob + Image → Canvas → PNG
+    var svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    var url = URL.createObjectURL(svgBlob);
+    var img = new Image();
+    img.onload = function () {
+      var canvas = document.createElement('canvas');
+      canvas.width = VIEW_W * 2;
+      canvas.height = VIEW_H * 2;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = colorMap['--color-background'] || '#f5f6f8';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(2, 2);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(function (blob) {
+        var a = document.createElement('a');
+        a.download = '会议座次_客' + state.guestCount + '_主' + state.hostCount + '.png';
+        a.href = URL.createObjectURL(blob);
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/png');
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = function () {
+      alert('PNG 导出失败，请重试。');
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+
+  /* ================================================================
+     T9 · 自定义微调模式
+     ================================================================ */
+
+  /* ---- 进入/退出自定义模式 ---- */
+  function toggleCustomMode() {
+    if (customMode) {
+      exitCustomMode(false);
+    } else {
+      enterCustomMode();
+    }
+  }
+
+  function enterCustomMode() {
+    customMode = true;
+    // 快照当前算法座位
+    customGuestSeats = arrangeSeats(state.guestCount, false, getOneIdx(false));
+    customHostSeats = arrangeSeats(state.hostCount, true, getOneIdx(true));
+    customGuestCount = state.guestCount;
+    customHostCount = state.hostCount;
+    customNames = {};
+
+    wrapperEl.classList.add('custom-active');
+    var btnCustom = document.getElementById('btn-custom');
+    btnCustom.textContent = '退出自定义';
+    btnCustom.classList.remove('btn-secondary');
+    btnCustom.classList.add('btn-primary');
+    renderAll();
+  }
+
+  function exitCustomMode(silent) {
+    // silent=true 表示人数变更导致强制退出
+    customMode = false;
+    customGuestSeats = null;
+    customHostSeats = null;
+    customNames = {};
+    customGuestCount = 0;
+    customHostCount = 0;
+    hideNameEditor();
+    if (dragState.ghost) {
+      dragState.ghost.remove();
+      dragState.ghost = null;
+    }
+    dragState.active = false;
+
+    wrapperEl.classList.remove('custom-active');
+    var btnCustom = document.getElementById('btn-custom');
+    btnCustom.textContent = '自定义微调';
+    btnCustom.classList.remove('btn-primary');
+    btnCustom.classList.add('btn-secondary');
+    if (!silent) {
+      renderAll();
+    }
+  }
+
+  /* ---- SVG 事件委托：mousedown / mousemove / mouseup ---- */
+  function getSeatGroup(el) {
+    while (el && el !== svgEl) {
+      if (el.classList && el.classList.contains('seat-group')) return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function handleSVGMouseDown(e) {
+    if (!customMode) return;
+    var group = getSeatGroup(e.target);
+    if (!group) { hideNameEditor(); return; }
+    var side = group.getAttribute('data-side');
+    var idx = parseInt(group.getAttribute('data-index'), 10);
+    if (!side || isNaN(idx)) return;
+    // 短边不可编辑
+    if (side === 'short') return;
+
+    hideNameEditor();
+
+    // 仅有人座位可拖拽
+    var seats = getSeatArrays();
+    var sideSeats = side === 'guest' ? seats.guest : seats.host;
+    if (sideSeats[idx] == null) return; // 空位不可拖拽，不触发任何操作
+
+    // 记录准备拖拽
+    dragState.active = false;
+    dragState.side = side;
+    dragState.index = idx;
+    dragState.startX = e.clientX;
+    dragState.startY = e.clientY;
+    var pos = getSeatSvgPos(side, idx);
+    dragState.seatX = pos.x;
+    dragState.seatY = pos.y;
+
+    e.preventDefault();
+  }
+
+  function handleSVGMouseMove(e) {
+    if (!customMode || dragState.side == null) return;
+
+    var dx = e.clientX - dragState.startX;
+    var dy = e.clientY - dragState.startY;
+
+    // 移动超过 3px 启动拖拽
+    if (!dragState.active && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      dragState.active = true;
+      createDragGhost(dragState.side, dragState.index, e.clientX, e.clientY);
+      // 标记源座位
+      var groups = seatsLayer.querySelectorAll('.seat-group');
+      for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        if (g.getAttribute('data-side') === dragState.side &&
+            parseInt(g.getAttribute('data-index'), 10) === dragState.index) {
+          g.classList.add('drag-source');
+          break;
+        }
+      }
+    }
+
+    if (dragState.active && dragState.ghost) {
+      var wr = wrapperEl.getBoundingClientRect();
+      dragState.ghost.style.left = (e.clientX - wr.left - 28) + 'px';
+      dragState.ghost.style.top = (e.clientY - wr.top - 28) + 'px';
+    }
+  }
+
+  function handleSVGMouseUp(e) {
+    if (!customMode) return;
+
+    if (dragState.active) {
+      // 拖拽结束：检测目标空位
+      finishDrag(e);
+    } else if (dragState.side != null) {
+      // 点击（未拖动）：编辑姓名
+      showNameEditor(dragState.side, dragState.index);
+    }
+
+    // 清理拖拽状态
+    if (dragState.ghost) {
+      dragState.ghost.remove();
+      dragState.ghost = null;
+    }
+    // 移除所有 drag-source 标记
+    var sources = seatsLayer.querySelectorAll('.drag-source');
+    for (var s = 0; s < sources.length; s++) {
+      sources[s].classList.remove('drag-source');
+    }
+    dragState.active = false;
+    dragState.side = null;
+    dragState.index = null;
+  }
+
+  /* ---- 创建拖拽幽灵 ---- */
+  function createDragGhost(side, index, clientX, clientY) {
+    var seats = getSeatArrays();
+    var sideSeats = side === 'guest' ? seats.guest : seats.host;
+    var num = sideSeats[index];
+    var key = side + '-' + index;
+
+    var ghost = document.createElement('div');
+    ghost.className = 'drag-ghost';
+
+    var seatDiv = document.createElement('div');
+    seatDiv.className = 'ghost-seat';
+    seatDiv.textContent = num != null ? num : '';
+    ghost.appendChild(seatDiv);
+
+    if (customNames[key]) {
+      var nameDiv = document.createElement('div');
+      nameDiv.className = 'ghost-name';
+      nameDiv.textContent = customNames[key].length > 4 ? customNames[key].substring(0, 4) : customNames[key];
+      ghost.appendChild(nameDiv);
+    }
+
+    var wr = wrapperEl.getBoundingClientRect();
+    ghost.style.left = (clientX - wr.left - 28) + 'px';
+    ghost.style.top = (clientY - wr.top - 28) + 'px';
+
+    wrapperEl.appendChild(ghost);
+    dragState.ghost = ghost;
+  }
+
+  /* ---- 完成拖拽：检测目标空位并交换 ---- */
+  function finishDrag(e) {
+    // 找到鼠标下方的 seat-group
+    var target = document.elementFromPoint(e.clientX, e.clientY);
+    var group = getSeatGroup(target);
+    if (!group) return; // 未落在座位上，取消
+
+    var targetSide = group.getAttribute('data-side');
+    var targetIdx = parseInt(group.getAttribute('data-index'), 10);
+    if (!targetSide || isNaN(targetIdx)) return;
+    // 只能同侧交换
+    if (targetSide !== dragState.side) return;
+
+    var seats = targetSide === 'guest' ? customGuestSeats : customHostSeats;
+    // 目标必须是空位
+    if (seats[targetIdx] != null) return;
+
+    // 交换：源 → 目标，源变空
+    seats[targetIdx] = seats[dragState.index];
+    seats[dragState.index] = null;
+
+    // 姓名跟随移动
+    var srcKey = dragState.side + '-' + dragState.index;
+    var dstKey = targetSide + '-' + targetIdx;
+    if (customNames[srcKey]) {
+      customNames[dstKey] = customNames[srcKey];
+      delete customNames[srcKey];
+    }
+
+    renderAll();
+  }
+
+  /* ---- 姓名编辑器 ---- */
+  function showNameEditor(side, idx) {
+    var seats = getSeatArrays();
+    var sideSeats = side === 'guest' ? seats.guest : seats.host;
+    if (sideSeats[idx] == null) return;
+
+    hideNameEditor();
+
+    var pos = getSeatSvgPos(side, idx);
+    var wrapperPos = svgToWrapper(pos.x, pos.y);
+    var svgRect = svgEl.getBoundingClientRect();
+    var wrapperRect = wrapperEl.getBoundingClientRect();
+    var scale = svgRect.width / VIEW_W;
+    var seatW = SEAT * scale;
+
+    seatEditor.style.display = 'block';
+    seatEditor.style.left = wrapperPos.x + 'px';
+    // 输入框放在座位上方（客方）或下方（主方）
+    if (side === 'guest') {
+      seatEditor.style.top = (wrapperPos.y - 30 * scale) + 'px';
+    } else {
+      seatEditor.style.top = (wrapperPos.y + seatW + 6) + 'px';
+    }
+    seatEditor.style.width = seatW + 'px';
+    seatEditor.style.height = (28 * scale) + 'px';
+    seatEditor.style.fontSize = (12 * scale) + 'px';
+
+    var key = side + '-' + idx;
+    seatEditor.value = customNames[key] || '';
+    seatEditor.setAttribute('data-side', side);
+    seatEditor.setAttribute('data-index', String(idx));
+    seatEditor.focus();
+    seatEditor.select();
+  }
+
+  function hideNameEditor() {
+    seatEditor.style.display = 'none';
+    seatEditor.removeAttribute('data-side');
+    seatEditor.removeAttribute('data-index');
+  }
+
+  function commitNameEdit() {
+    var side = seatEditor.getAttribute('data-side');
+    var idx = seatEditor.getAttribute('data-index');
+    if (!side || !idx) { hideNameEditor(); return; }
+    var val = seatEditor.value.trim();
+    var key = side + '-' + idx;
+    if (val) {
+      customNames[key] = val;
+    } else {
+      delete customNames[key];
+    }
+    hideNameEditor();
     renderAll();
   }
 
@@ -954,11 +1498,56 @@ body {
         });
       })(chips[i]);
     }
+
+    // 下载 PNG
+    document.getElementById('btn-download').addEventListener('click', function () {
+      downloadPNG();
+    });
+
+    // 自定义微调
+    document.getElementById('btn-custom').addEventListener('click', function () {
+      toggleCustomMode();
+    });
+
+    // SVG 事件委托（mousedown/mousemove/mouseup）
+    svgEl.addEventListener('mousedown', handleSVGMouseDown);
+    document.addEventListener('mousemove', handleSVGMouseMove);
+    document.addEventListener('mouseup', handleSVGMouseUp);
+
+    // 姓名编辑器事件
+    seatEditor.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commitNameEdit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideNameEditor();
+      }
+    });
+    seatEditor.addEventListener('blur', function () {
+      // 延迟执行，让 Enter/Esc 先处理
+      setTimeout(function () {
+        if (seatEditor.style.display !== 'none') {
+          commitNameEdit();
+        }
+      }, 150);
+    });
+
+    // 点击空白区域关闭编辑器
+    document.addEventListener('click', function (e) {
+      if (customMode && seatEditor.style.display !== 'none') {
+        if (e.target !== seatEditor && !seatEditor.contains(e.target)) {
+          var group = getSeatGroup(e.target);
+          if (!group) {
+            commitNameEdit();
+          }
+        }
+      }
+    });
   }
 
   /* ---- 页面初始化 ---- */
   bindEvents();
-  // 首次渲染：客 5 · 主 5（均为奇数 → 1号同在索引3，A[3]↔B[3] 正对 ✓）
   renderAll();
 })();
 </script>
