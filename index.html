@@ -811,18 +811,27 @@ body {
 
     // 姓名标签（自定义模式下的外侧标签）
     if (nameLabel) {
-      var nameY;
+      var nameX, nameY, nameAnchor;
       if (side === 'guest') {
         // 上排：姓名在座位上方
+        nameX = x + SEAT / 2;
         nameY = y - 8;
-      } else {
+        nameAnchor = 'middle';
+      } else if (side === 'host') {
         // 下排：姓名在座位下方
+        nameX = x + SEAT / 2;
         nameY = y + SEAT + 14;
+        nameAnchor = 'middle';
+      } else {
+        // 短边：姓名在座位右侧
+        nameX = x + SEAT + 8;
+        nameY = y + SEAT / 2 + 4;
+        nameAnchor = 'start';
       }
       // 截断过长姓名（最多 4 个中文字符）
       var shortName = nameLabel.length > 4 ? nameLabel.substring(0, 4) : nameLabel;
-      html += '<text x="' + (x + SEAT / 2) + '" y="' + nameY + '"' +
-             ' text-anchor="middle" font-size="11" font-weight="500"' +
+      html += '<text x="' + nameX + '" y="' + nameY + '"' +
+             ' text-anchor="' + nameAnchor + '" font-size="11" font-weight="500"' +
              ' fill="var(--color-muted-foreground)"' +
              ' pointer-events="none">' + escapeXml(shortName) + '</text>';
     }
@@ -869,12 +878,12 @@ body {
     return html;
   }
 
-  /* ---- 渲染短边竖排 2 座（占位，均为空位） ---- */
-  function renderShortSide() {
+  /* ---- 渲染短边竖排 2 座（自定义模式下可由拖拽填入座位） ---- */
+  function renderShortSide(shortSeats) {
     var y1 = SHORT_CY - SEAT - 8;
     var y2 = SHORT_CY + 8;
-    var html = renderSeat(SHORT_X, y1, null, 'short', 0) +
-               renderSeat(SHORT_X, y2, null, 'short', 1);
+    var html = renderSeat(SHORT_X, y1, shortSeats[0], 'short', 0) +
+               renderSeat(SHORT_X, y2, shortSeats[1], 'short', 1);
     // 标签
     var labelY = y2 + SEAT + 16;
     html += '<text x="' + (SHORT_X + SEAT / 2) + '" y="' + labelY + '"' +
@@ -884,10 +893,10 @@ body {
   }
 
   /* ---- 汇总渲染 → 写入 DOM ---- */
-  function refreshSVG(guestArr, hostArr) {
+  function refreshSVG(guestArr, hostArr, shortArr) {
     var html = renderSide(guestArr, 'top') +
                renderSide(hostArr, 'bottom') +
-               renderShortSide();
+               renderShortSide(shortArr);
     seatsLayer.innerHTML = html;
   }
 
@@ -940,6 +949,7 @@ body {
   var customNames = {};        // { "guest-3": "张总" }
   var customGuestSeats = null; // 快照座位数组
   var customHostSeats = null;
+  var customShortSeats = null; // 短边 2 座快照（用于支持拖拽到短边）
   var customGuestCount = 0;    // 快照时人数
   var customHostCount = 0;
 
@@ -977,20 +987,26 @@ body {
 
   /* ---- 获取当前实际使用的座位数组 ---- */
   function getSeatArrays() {
-    if (customMode && customGuestSeats && customHostSeats) {
+    if (customMode && customGuestSeats && customHostSeats && customShortSeats) {
       return {
         guest: customGuestSeats.slice(),
-        host: customHostSeats.slice()
+        host: customHostSeats.slice(),
+        short: customShortSeats.slice()
       };
     }
     return {
       guest: arrangeSeats(state.guestCount, false, getOneIdx(false)),
-      host: arrangeSeats(state.hostCount, true, getOneIdx(true))
+      host: arrangeSeats(state.hostCount, true, getOneIdx(true)),
+      short: [null, null]  // 算法模式下短边始终为空位占位
     };
   }
 
   /* ---- 计算座位在 SVG 中的坐标 ---- */
   function getSeatSvgPos(side, index) {
+    if (side === 'short') {
+      var sy = index === 0 ? (SHORT_CY - SEAT - 8) : (SHORT_CY + 8);
+      return { x: SHORT_X, y: sy };
+    }
     var y = side === 'guest' ? TOP_Y : BOTTOM_Y;
     var seats = side === 'guest' ? getSeatArrays().guest : getSeatArrays().host;
     var n = seats.length;
@@ -1019,7 +1035,7 @@ body {
     }
 
     var seats = getSeatArrays();
-    refreshSVG(seats.guest, seats.host);
+    refreshSVG(seats.guest, seats.host, seats.short);
 
     // 人数摘要
     var total = state.guestCount + state.hostCount;
@@ -1130,41 +1146,53 @@ body {
     return map;
   }
 
-  /* ---- rgb(r, g, b) 字符串 → #rrggbb ---- */
+  /* ---- rgb(r, g, b) / color(srgb r g b) 字符串 → #rrggbb ----
+     浏览器对 OKLCH 变量的 computed style 可能返回两种格式：
+       "rgb(128, 33, 77)"          → r/g/b 为 0–255 整数
+       "color(srgb 0.5 0.13 0.3)"  → r/g/b 为 0–1 浮点数，须 ×255  */
   function rgbToHex(rgbStr) {
     var match = rgbStr.match(/[\d.]+/g);
     if (!match || match.length < 3) return '#000000';
-    var r = Math.round(parseFloat(match[0]));
-    var g = Math.round(parseFloat(match[1]));
-    var b = Math.round(parseFloat(match[2]));
+    var r = parseFloat(match[0]);
+    var g = parseFloat(match[1]);
+    var b = parseFloat(match[2]);
+    // 检测 color(srgb ...) 格式：值域为 0–1 浮点数
+    if (rgbStr.indexOf('srgb') !== -1) {
+      r = Math.round(r * 255);
+      g = Math.round(g * 255);
+      b = Math.round(b * 255);
+    } else {
+      r = Math.round(r);
+      g = Math.round(g);
+      b = Math.round(b);
+    }
     return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
-  /* ---- 下载 PNG ---- */
+  /* ---- 下载 PNG ----
+     关键：用 outerHTML（HTML 片段序列化）而非 cloneNode + XMLSerializer，
+     否则 innerHTML 动态注入的座位元素在独立 SVG 中丢失 SVG namespace 而无法渲染。 */
   function downloadPNG() {
     var colorMap = buildSvgColorMap();
 
-    // 克隆 SVG 并替换 CSS 变量
-    var svgClone = svgEl.cloneNode(true);
-    // 确保 xmlns
-    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    // 用 outerHTML 获取完整 SVG DOM（包含 JS 动态注入的座位层）
+    var svgString = svgEl.outerHTML;
+    // 补充 xmlns，确保作为独立 .svg 文件渲染时 namespace 正确
+    if (svgString.indexOf('xmlns=') === -1) {
+      svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
 
-    // 序列化 SVG
-    var svgString = new XMLSerializer().serializeToString(svgClone);
-
-    // 替换 CSS 变量为 hex 值（用字符串替换避免正则转义问题）
+    // 替换 CSS 变量为 hex 值
     var varNames = Object.keys(colorMap);
     for (var i = 0; i < varNames.length; i++) {
       var vn = varNames[i];
       svgString = svgString.split('var(' + vn + ')').join(colorMap[vn]);
     }
 
-    // 处理 OKLCH 直接引用（如 oklch(0.96 0.008 240 / 0.4)）
-    // 这些在 buildSvgColorMap 中已通过 computed style 转换
-    // 但仍有直接在属性中写 oklch 的情况
+    // 处理残留的 OKLCH 直接引用（兜底）
     svgString = svgString.replace(/oklch\([^)]+\)/g, '#eef0f2');
 
-    // fill="transparent" → fill="none"
+    // fill="transparent" → fill="none"（canvas 渲染兼容）
     svgString = svgString.replace(/fill="transparent"/g, 'fill="none"');
 
     // 构建 Blob + Image → Canvas → PNG
@@ -1214,6 +1242,7 @@ body {
     // 快照当前算法座位
     customGuestSeats = arrangeSeats(state.guestCount, false, getOneIdx(false));
     customHostSeats = arrangeSeats(state.hostCount, true, getOneIdx(true));
+    customShortSeats = [null, null];  // 短边初始为空位
     customGuestCount = state.guestCount;
     customHostCount = state.hostCount;
     customNames = {};
@@ -1231,6 +1260,7 @@ body {
     customMode = false;
     customGuestSeats = null;
     customHostSeats = null;
+    customShortSeats = null;
     customNames = {};
     customGuestCount = 0;
     customHostCount = 0;
@@ -1267,14 +1297,15 @@ body {
     var side = group.getAttribute('data-side');
     var idx = parseInt(group.getAttribute('data-index'), 10);
     if (!side || isNaN(idx)) return;
-    // 短边不可编辑
-    if (side === 'short') return;
 
     hideNameEditor();
 
-    // 仅有人座位可拖拽
+    // 仅有人座位可拖拽（包含短边，自定义模式下短边可能已被拖入座位）
     var seats = getSeatArrays();
-    var sideSeats = side === 'guest' ? seats.guest : seats.host;
+    var sideSeats;
+    if (side === 'guest') sideSeats = seats.guest;
+    else if (side === 'host') sideSeats = seats.host;
+    else sideSeats = seats.short;
     if (sideSeats[idx] == null) return; // 空位不可拖拽，不触发任何操作
 
     // 记录准备拖拽
@@ -1348,7 +1379,10 @@ body {
   /* ---- 创建拖拽幽灵 ---- */
   function createDragGhost(side, index, clientX, clientY) {
     var seats = getSeatArrays();
-    var sideSeats = side === 'guest' ? seats.guest : seats.host;
+    var sideSeats;
+    if (side === 'guest') sideSeats = seats.guest;
+    else if (side === 'host') sideSeats = seats.host;
+    else sideSeats = seats.short;
     var num = sideSeats[index];
     var key = side + '-' + index;
 
@@ -1375,7 +1409,7 @@ body {
     dragState.ghost = ghost;
   }
 
-  /* ---- 完成拖拽：检测目标空位并交换 ---- */
+  /* ---- 完成拖拽：检测目标空位并交换（支持跨侧，含短边） ---- */
   function finishDrag(e) {
     // 找到鼠标下方的 seat-group
     var target = document.elementFromPoint(e.clientX, e.clientY);
@@ -1385,16 +1419,24 @@ body {
     var targetSide = group.getAttribute('data-side');
     var targetIdx = parseInt(group.getAttribute('data-index'), 10);
     if (!targetSide || isNaN(targetIdx)) return;
-    // 只能同侧交换
-    if (targetSide !== dragState.side) return;
 
-    var seats = targetSide === 'guest' ? customGuestSeats : customHostSeats;
+    // 获取源侧与目标侧的座位数组
+    function getSideSeats(s) {
+      if (s === 'guest') return customGuestSeats;
+      if (s === 'host') return customHostSeats;
+      if (s === 'short') return customShortSeats;
+      return null;
+    }
+    var srcSeats = getSideSeats(dragState.side);
+    var dstSeats = getSideSeats(targetSide);
+    if (!srcSeats || !dstSeats) return;
+
     // 目标必须是空位
-    if (seats[targetIdx] != null) return;
+    if (dstSeats[targetIdx] != null) return;
 
     // 交换：源 → 目标，源变空
-    seats[targetIdx] = seats[dragState.index];
-    seats[dragState.index] = null;
+    dstSeats[targetIdx] = srcSeats[dragState.index];
+    srcSeats[dragState.index] = null;
 
     // 姓名跟随移动
     var srcKey = dragState.side + '-' + dragState.index;
@@ -1410,7 +1452,10 @@ body {
   /* ---- 姓名编辑器 ---- */
   function showNameEditor(side, idx) {
     var seats = getSeatArrays();
-    var sideSeats = side === 'guest' ? seats.guest : seats.host;
+    var sideSeats;
+    if (side === 'guest') sideSeats = seats.guest;
+    else if (side === 'host') sideSeats = seats.host;
+    else sideSeats = seats.short;
     if (sideSeats[idx] == null) return;
 
     hideNameEditor();
@@ -1424,11 +1469,15 @@ body {
 
     seatEditor.style.display = 'block';
     seatEditor.style.left = wrapperPos.x + 'px';
-    // 输入框放在座位上方（客方）或下方（主方）
+    // 输入框位置：客方在上、主方在下、短边在右侧
     if (side === 'guest') {
       seatEditor.style.top = (wrapperPos.y - 30 * scale) + 'px';
-    } else {
+    } else if (side === 'host') {
       seatEditor.style.top = (wrapperPos.y + seatW + 6) + 'px';
+    } else {
+      // 短边：输入框放在座位右侧
+      seatEditor.style.top = (wrapperPos.y + seatW / 2 - 14 * scale) + 'px';
+      seatEditor.style.left = (wrapperPos.x + seatW + 8) + 'px';
     }
     seatEditor.style.width = seatW + 'px';
     seatEditor.style.height = (28 * scale) + 'px';
