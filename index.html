@@ -1139,50 +1139,118 @@ body {
       var v = vars[i];
       testEl.style.color = 'var(' + v + ')';
       var comp = getComputedStyle(testEl).color;
-      // comp 格式: "rgb(r, g, b)" 或 "color(srgb ...)"
-      map[v] = rgbToHex(comp);
+      // comp 可能是 "rgb()"、"rgba()"、"color(srgb ...)" 或 "oklch(...)"
+      // cssColorToHex 利用 Canvas API 统一处理所有格式
+      map[v] = cssColorToHex(comp, false);
     }
     document.body.removeChild(testEl);
     return map;
   }
 
-  /* ---- rgb(r, g, b) / color(srgb r g b) 字符串 → #rrggbb ----
-     浏览器对 OKLCH 变量的 computed style 可能返回两种格式：
-       "rgb(128, 33, 77)"          → r/g/b 为 0–255 整数
-       "color(srgb 0.5 0.13 0.3)"  → r/g/b 为 0–1 浮点数，须 ×255  */
-  function rgbToHex(rgbStr) {
-    var match = rgbStr.match(/[\d.]+/g);
-    if (!match || match.length < 3) return '#000000';
-    var r = parseFloat(match[0]);
-    var g = parseFloat(match[1]);
-    var b = parseFloat(match[2]);
-    // 检测 color(srgb ...) 格式：值域为 0–1 浮点数
-    if (rgbStr.indexOf('srgb') !== -1) {
-      r = Math.round(r * 255);
-      g = Math.round(g * 255);
-      b = Math.round(b * 255);
-    } else {
-      r = Math.round(r);
-      g = Math.round(g);
-      b = Math.round(b);
+  /* ---- 任意 CSS 颜色格式 → #rrggbb ----
+     核心思路：不要用 ctx.fillStyle getter（它会原样返回 oklch() 字符串），
+     而是实际绘制 1 像素到 canvas，再通过 getImageData 读取渲染后的 sRGB 像素值。
+
+     为什么 fillStyle getter 不可靠：
+       ctx.fillStyle = 'oklch(0.96 0.008 240 / 0.4)'
+       ctx.fillStyle  // → 'oklch(0.96 0.008 240 / 0.4)'  ← 浏览器原样返回！
+       Canvas 能正确绘制 OKLCH 颜色，但 getter 不做格式转换。
+       只有 getImageData 返回的是实际渲染的 sRGB 像素值。
+
+     支持 alpha 通道：若 blendWithWhite=true 且 a < 1，则与白色 (#fff) 混合。 */
+  function cssColorToHex(cssColor, blendWithWhite) {
+    if (!cssColor || cssColor === 'transparent' || cssColor === 'none') {
+      return blendWithWhite ? '#ffffff' : '#f8fafc';
     }
+    // 如果已经是 hex 格式，直接返回
+    if (cssColor.charAt(0) === '#' && cssColor.length === 7) {
+      return cssColor;
+    }
+
+    // 创建 1×1 像素 canvas，实际绘制颜色，然后读取像素值
+    var canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    var ctx = canvas.getContext('2d');
+
+    // 设置颜色并绘制（Canvas 的绘制引擎正确理解所有 CSS 颜色格式）
+    ctx.fillStyle = cssColor;
+    ctx.fillRect(0, 0, 1, 1);
+
+    // 读取实际渲染的 sRGB 像素值（不受 fillStyle getter 的原始字符串影响）
+    var pixel = ctx.getImageData(0, 0, 1, 1).data;
+    var r = pixel[0];
+    var g = pixel[1];
+    var b = pixel[2];
+    var a = pixel[3] / 255;
+
+    // alpha 混合到白色（用于半透明背景）
+    if (blendWithWhite && a < 1) {
+      r = Math.round(r * a + 255 * (1 - a));
+      g = Math.round(g * a + 255 * (1 - a));
+      b = Math.round(b * a + 255 * (1 - a));
+    }
+
     return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
   /* ---- 下载 PNG ----
      关键：用 outerHTML（HTML 片段序列化）而非 cloneNode + XMLSerializer，
-     否则 innerHTML 动态注入的座位元素在独立 SVG 中丢失 SVG namespace 而无法渲染。 */
+     否则 innerHTML 动态注入的座位元素在独立 SVG 中丢失 SVG namespace 而无法渲染。
+
+     修复思路（遵循 PNG下载功能导出图片颜色bug可能原因.md 方案一）：
+       1. 获取 .svg-wrapper 的计算后实际背景色（含 alpha 混合到白色）
+       2. 在 SVG 内部注入全尺寸背景矩形，确保非房间区域也有正确背景色
+       3. Canvas 填充使用 wrapper 的实际背景色，而非 --color-background 变量值
+       4. 始终确保 SVG 有 width/height 属性，避免回退到默认 300×150 导致裁切 */
   function downloadPNG() {
     var colorMap = buildSvgColorMap();
 
+    // ---- 1. 获取预览区 wrapper 的计算后实际背景色（方案一核心） ----
+    // .svg-wrapper 背景为 oklch(0.96 0.008 240 / 0.4)（含 0.4 透明度）
+    // cssColorToHex 利用 Canvas API 正确解析 oklch → sRGB，避免正则误解析
+    var wrapperComputedBg = window.getComputedStyle(wrapperEl).backgroundColor;
+    var wrapperBgHex = cssColorToHex(wrapperComputedBg, true); // true = 与白色混合
+
+    // [诊断] 输出关键变量，便于排查
+    console.log('=== PNG 导出诊断 ===');
+    console.log('computed backgroundColor:', wrapperComputedBg);
+    console.log('wrapperBgHex:', wrapperBgHex);
+    console.log('colorMap sample:', {
+      '--color-background': colorMap['--color-background'],
+      '--color-primary': colorMap['--color-primary'],
+      '--color-card': colorMap['--color-card'],
+      '--color-muted-foreground': colorMap['--color-muted-foreground']
+    });
+
     // 用 outerHTML 获取完整 SVG DOM（包含 JS 动态注入的座位层）
     var svgString = svgEl.outerHTML;
-    // 补充 xmlns，确保作为独立 .svg 文件渲染时 namespace 正确
-    if (svgString.indexOf('xmlns=') === -1) {
+    console.log('SVG outerHTML 前 200 字符:', svgString.substring(0, 200));
+
+    // ---- 2. 始终确保 xmlns + width + height ----
+    // 关键：只检查 SVG 开头标签（到第一个 >），避免匹配子元素的 width= 属性
+    // 子元素如 <rect width="772"> 会导致 indexOf('width=') 误判为根标签已有 width
+    var svgOpenEnd = svgString.indexOf('>');
+    var svgOpenTag = svgString.substring(0, svgOpenEnd + 1);
+
+    if (svgOpenTag.indexOf('xmlns=') === -1) {
       svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
     }
+    // 用 ' width='（前置空格）精确匹配，避免误匹配 stroke-width=
+    if (svgOpenTag.indexOf(' width=') === -1) {
+      svgString = svgString.replace('<svg', '<svg width="' + VIEW_W + '" height="' + VIEW_H + '"');
+    }
 
-    // 替换 CSS 变量为 hex 值
+    // [诊断] 确认注入后的 SVG 开头标签
+    var svgOpenEnd2 = svgString.indexOf('>');
+    console.log('注入后 SVG 开头标签:', svgString.substring(0, svgOpenEnd2 + 1));
+
+    // ---- 3. 在 SVG 内部注入全尺寸背景矩形（最先绘制，垫底） ----
+    // 确保 SVG 中房间外墙以外的透明区域也有正确背景色
+    var bgRect = '<rect x="0" y="0" width="' + VIEW_W + '" height="' + VIEW_H + '" fill="' + wrapperBgHex + '" />';
+    svgString = svgString.replace('>', '>' + bgRect);
+
+    // ---- 4. 替换 CSS 变量为 hex 值 ----
     var varNames = Object.keys(colorMap);
     for (var i = 0; i < varNames.length; i++) {
       var vn = varNames[i];
@@ -1195,7 +1263,7 @@ body {
     // fill="transparent" → fill="none"（canvas 渲染兼容）
     svgString = svgString.replace(/fill="transparent"/g, 'fill="none"');
 
-    // 构建 Blob + Image → Canvas → PNG
+    // ---- 5. 构建 Blob + Image → Canvas → PNG ----
     var svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
     var url = URL.createObjectURL(svgBlob);
     var img = new Image();
@@ -1204,7 +1272,8 @@ body {
       canvas.width = VIEW_W * 2;
       canvas.height = VIEW_H * 2;
       var ctx = canvas.getContext('2d');
-      ctx.fillStyle = colorMap['--color-background'] || '#f5f6f8';
+      // 使用 wrapper 实际背景色填充 canvas（双重保险：SVG 内已有背景矩形）
+      ctx.fillStyle = wrapperBgHex;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.scale(2, 2);
       ctx.drawImage(img, 0, 0);
