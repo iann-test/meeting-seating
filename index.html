@@ -607,15 +607,15 @@ body {
           <div style="display:flex;gap:12px;align-items:flex-start">
             <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">5</span>
             <div>
-              <div style="font-size:14px;font-weight:500">对坐规则</div>
-              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">奇数时双方 1 号正对；偶数时交叉对坐（客 1↔主 2、客 2↔主 1）。</div>
+              <div style="font-size:14px;font-weight:500">1号对坐</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">无论人数奇偶，双方1号始终正面对坐。</div>
             </div>
           </div>
           <div style="display:flex;gap:12px;align-items:flex-start">
             <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">6</span>
             <div>
-              <div style="font-size:14px;font-weight:500">满员优先</div>
-              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">任一方满 8 人时，以满员方为准确定 1 号位。</div>
+              <div style="font-size:14px;font-weight:500">列席位处理</div>
+              <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">双方均满员时，主方8号以对比色标识为列席位。</div>
             </div>
           </div>
         </div>
@@ -771,8 +771,9 @@ body {
 
   /* ---- 单座位 SVG 字符串 ----
      side: 'guest' | 'host', index: 0-7
+     isOverflow: 列席位标记（情况三主方8号），使用对比色 #c96442
      自定义模式下有人座位渲染姓名标签（外侧） */
-  function renderSeat(x, y, num, side, index) {
+  function renderSeat(x, y, num, side, index, isOverflow) {
     var filled = num != null;
     var key = (side || '') + '-' + (index != null ? index : '');
     var displayLabel = num; // SVG 方块内显示的数字
@@ -791,9 +792,10 @@ body {
     var html = '<g class="' + seatClass + '" data-side="' + (side || '') + '" data-index="' + (index != null ? index : '') + '">';
 
     if (filled) {
+      var fillColor = isOverflow ? '#c96442' : 'var(--color-primary)';
       html += '<rect class="seat-rect-filled" x="' + x + '" y="' + y +
              '" width="' + SEAT + '" height="' + SEAT + '" rx="8"' +
-             ' fill="var(--color-primary)" />';
+             ' fill="' + fillColor + '" />';
     } else {
       html += '<rect class="seat-rect-empty" x="' + x + '" y="' + y +
              '" width="' + SEAT + '" height="' + SEAT + '" rx="8"' +
@@ -868,8 +870,11 @@ body {
 
     var html = '';
     var startX = TABLE.x + (TABLE.w - rowWidth(n)) / 2;
+    // 情况三（双方均满员）列席检测：主方 index 7（座位 k）的 8 号为列席位
+    var isOverflowCase = (side === 'bottom' && state.guestCount === 8 && state.hostCount === 8);
     for (var i = 0; i < n; i++) {
-      html += renderSeat(startX + i * SEAT_GAP, y, seats[i], sideName, i);
+      var overflow = isOverflowCase && seats[i] === 8 && i === 7;
+      html += renderSeat(startX + i * SEAT_GAP, y, seats[i], sideName, i, overflow);
     }
     // 标签始终显示
     html += '<text x="' + (TABLE.x + TABLE.w / 2) + '" y="' + labelY + '"' +
@@ -882,8 +887,8 @@ body {
   function renderShortSide(shortSeats) {
     var y1 = SHORT_CY - SEAT - 8;
     var y2 = SHORT_CY + 8;
-    var html = renderSeat(SHORT_X, y1, shortSeats[0], 'short', 0) +
-               renderSeat(SHORT_X, y2, shortSeats[1], 'short', 1);
+    var html = renderSeat(SHORT_X, y1, shortSeats[0], 'short', 0, false) +
+               renderSeat(SHORT_X, y2, shortSeats[1], 'short', 1, false);
     // 标签
     var labelY = y2 + SEAT + 16;
     html += '<text x="' + (SHORT_X + SEAT / 2) + '" y="' + labelY + '"' +
@@ -897,21 +902,28 @@ body {
     var html = renderSide(guestArr, 'top') +
                renderSide(hostArr, 'bottom') +
                renderShortSide(shortArr);
+    // 情况三（双方均满员）列席备注
+    if (state.guestCount === 8 && state.hostCount === 8) {
+      html += '<text x="410" y="440" text-anchor="middle" font-size="10"' +
+              ' fill="var(--color-muted-foreground)">' +
+              '注：双方均满员时，按以左为尊规则主方8号理论位置应在6号左侧，' +
+              '因席位限制调整至剩余空位作为列席。</text>';
+    }
     seatsLayer.innerHTML = html;
   }
 
-  /* ---- 座次排列算法（1号位、2号位定位规则_修正版.md） ----
+  /* ---- 座次排列算法（V3：会议室座次排布规则_修正版_v3.md） ----
      双方各自以左为尊独立排列
        客方面门 → 左=俯视图右侧(大索引)
        主方面白板 → 左=俯视图左侧(小索引)
+     座位字母映射：客 a-h(idx0-7)，主 r(idx0)→k(idx7)
      填位顺序（中心→两侧，左右交替，左优先）
        客方·索引3: [3,4,2,5,1,6,0,7]    客方·索引4: [4,5,3,6,2,7,1,0]
        主方·索引3: [3,2,4,1,5,0,6,7]    主方·索引4: [4,3,5,2,6,1,7,0]
-     1号位规则（三场景判定）：
-       双方均偶           → 客3主4（交叉对坐）
-       主满(8)客不满(<8)  → 双方4（以主方为准）
-       客满(8)主不满(<8)  → 双方3（以客方为准）
-       均不满员(≤7)       → 双方3（客方1号优先第4位） */
+     1号位规则（V3三情况二分法，见 getOneIdx）：
+       情况一（主≤7）    ：客d(idx3) 主o(idx3)
+       情况二（主=8客≤7） ：客e(idx4) 主n(idx4)
+       情况三（双方均=8） ：客d(idx3) 主o(idx3) + 主8列席k(idx7) */
   function arrangeSeats(n, isHost, oneIdx) {
     n = Math.floor(n);
     if (n < 0) { console.warn('arrangeSeats: n=' + n + ' < 0，clamp 到 0'); n = 0; }
@@ -965,23 +977,24 @@ body {
     seatY: 0   // 源座位 SVG y 坐标
   };
 
-  /* ---- 1号位定位规则 ---- */
+  /* ---- 1号位定位规则（V3：三情况二分法） ----
+     座位字母映射：客方 a-h(idx0-7)，主方 r(idx0)→k(idx7)
+     情况一（主≤7）  ：客1→d(idx3)，主1→o(idx3)  — 同索引直对
+     情况二（主=8客≤7）：客1→e(idx4)，主1→n(idx4)  — 同索引直对
+     情况三（双方均=8） ：客1→d(idx3)，主1→o(idx3)，主8列席k(idx7) */
   function getOneIdx(isHost) {
-    var guestEven = state.guestCount % 2 === 0;
-    var hostEven = state.hostCount % 2 === 0;
-    if (guestEven && hostEven) return isHost ? 4 : 3;
-    if (state.hostCount === 8 && state.guestCount < 8) return 4;
-    if (state.guestCount === 8 && state.hostCount < 8) return 3;
+    // 情况二：主方满员(=8) 且 客方不满员(≤7) → 双方均用索引4
+    if (state.hostCount === 8 && state.guestCount <= 7) {
+      return 4;
+    }
+    // 情况一 & 三 → 双方均用索引3
     return 3;
   }
 
-  /* ---- 获取 1 号对坐状态描述 ---- */
+  /* ---- 获取 1 号对坐状态描述（V3：1号始终正对） ---- */
   function getPairStatus() {
     if (state.guestCount === 0 && state.hostCount === 0) return '双方均无人就座';
     if (state.guestCount === 0 || state.hostCount === 0) return '单方就座，无对坐关系';
-    var guestEven = state.guestCount % 2 === 0;
-    var hostEven = state.hostCount % 2 === 0;
-    if (guestEven && hostEven) return '双方均偶，1&2 各自居中（交叉相对）';
     return '双方 1 号正对 ✓';
   }
 
