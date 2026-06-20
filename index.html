@@ -561,12 +561,28 @@ body {
 
   /* 卡片内边距缩减 */
   .card {
-    padding: 14px;
+    padding: 12px;
+  }
+  .card-header {
+    margin-bottom: 10px;
+  }
+  .card-title {
+    font-size: 15px;
+  }
+  .card-desc {
+    font-size: 13px;
   }
 
-  /* 步进器：缩减内边距 */
+  /* 步进器：缩减内边距与间距 */
   .stepper {
-    padding: 12px;
+    padding: 8px;
+    margin-bottom: 8px !important;
+  }
+  .stepper-header {
+    margin-bottom: 8px;
+  }
+  .stepper-body {
+    gap: 8px;
   }
 
   /* 步进器按钮：缩小尺寸 */
@@ -591,6 +607,7 @@ body {
   }
   .stepper-hint {
     font-size: 11px;
+    margin-top: 4px;
   }
 
   /* 导航按钮：缩小间距 */
@@ -736,7 +753,7 @@ body {
           <p class="card-desc">输入客方、主方人数，实时生成平面图。</p>
         </div>
         <!-- 客方步进器 -->
-        <div class="stepper" style="margin-bottom:16px">
+        <div class="stepper" style="margin-bottom:12px">
           <div class="stepper-header">
             <span class="stepper-dot primary"></span>
             <span class="stepper-label">客方人数</span>
@@ -750,7 +767,7 @@ body {
           <p class="stepper-hint">范围 0 – 8 人</p>
         </div>
         <!-- 主方步进器 -->
-        <div class="stepper" style="margin-bottom:16px">
+        <div class="stepper" style="margin-bottom:12px">
           <div class="stepper-header">
             <span class="stepper-dot accent"></span>
             <span class="stepper-label">主方人数</span>
@@ -769,7 +786,6 @@ body {
           <span class="preset-chip" data-guest="3" data-host="3">客3 · 主3</span>
           <span class="preset-chip" data-guest="8" data-host="8">客8 · 主8</span>
           <span class="preset-chip" data-guest="4" data-host="6">客4 · 主6</span>
-          <span class="preset-chip" data-guest="0" data-host="2">客0 · 主2</span>
         </div>
       </div>
     </aside>
