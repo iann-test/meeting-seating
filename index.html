@@ -114,73 +114,30 @@ body {
   border-color: var(--color-primary);
 }
 
-/* ----- 弹窗 ----- */
-.modal-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-overlay.is-open {
-  display: flex;
-}
-
-.modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-.modal-dialog {
+/* ----- 导航下拉面板 ----- */
+.navbar-dropdown {
   position: relative;
-  width: 90vw;
-  max-width: 500px;
-  max-height: 80vh;
+}
+
+.dropdown-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  max-height: 70vh;
   overflow-y: auto;
-  background: var(--card-bg, #fff);
+  background: var(--color-card, #fff);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.15);
-  padding: 24px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.12);
+  padding: 18px;
+  z-index: 50;
 }
 
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-foreground);
-}
-
-.modal-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-muted-foreground);
-  font-size: 20px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.modal-close:hover {
-  background: var(--color-border);
+.dropdown-panel.is-open {
+  display: block;
 }
 
 /* ----- 左侧栏 & 右侧栏子元素间距 ----- */
@@ -593,12 +550,47 @@ body {
     gap: 12px;
   }
 
-  /* 左侧/右侧面板 */
+  /* 左侧/右侧面板：撑满宽度，与预览卡片一致 */
   #left-panel,
   #right-panel {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    width: 100%;
+  }
+
+  /* 卡片内边距缩减 */
+  .card {
+    padding: 14px;
+  }
+
+  /* 步进器：缩减内边距 */
+  .stepper {
+    padding: 12px;
+  }
+
+  /* 步进器按钮：缩小尺寸 */
+  .stepper-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
+  }
+
+  /* 步进器数字输入：缩小高度与字号 */
+  .stepper-input {
+    height: 34px;
+    font-size: 17px;
+  }
+
+  /* 步进器标签 */
+  .stepper-label {
+    font-size: 13px;
+  }
+  .stepper-sublabel {
+    font-size: 11px;
+  }
+  .stepper-hint {
+    font-size: 11px;
   }
 
   /* 导航按钮：缩小间距 */
@@ -610,15 +602,11 @@ body {
     font-size: 12px;
   }
 
-  /* 弹窗：移动端全屏 */
-  .modal-dialog {
-    width: 100vw;
-    max-width: 100vw;
-    height: 100vh;
-    max-height: 100vh;
-    border-radius: 0;
-    border: none;
-    padding: 20px;
+  /* 下拉面板：移动端宽度自适应 */
+  .dropdown-panel {
+    width: 320px;
+    max-width: calc(100vw - 16px);
+    padding: 14px;
   }
 
   /* 预览卡片标题允许换行 */
@@ -651,10 +639,82 @@ body {
         <span class="product-slogan">输入人数，一键生成符合座次礼仪的会议平面图</span>
       </div>
     </div>
-    <!-- 导航按钮 -->
+    <!-- 导航下拉 -->
     <nav class="navbar-nav">
-      <button class="navbar-nav-btn" id="btn-show-rules">座次规则</button>
-      <button class="navbar-nav-btn" id="btn-show-tips">使用提示</button>
+      <div class="navbar-dropdown">
+        <button class="navbar-nav-btn" id="btn-rules">座次规则</button>
+        <div class="dropdown-panel" id="panel-rules">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">1</span>
+              <div>
+                <div style="font-size:14px;font-weight:500">以左为尊</div>
+                <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">2 号在 1 号的左手边，3 号在右手边，依次左右交替。</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">2</span>
+              <div>
+                <div style="font-size:14px;font-weight:500">居中为尊</div>
+                <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">1 号永远居中；偶数时 1 号、2 号同时居中。</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">3</span>
+              <div>
+                <div style="font-size:14px;font-weight:500">面门为尊</div>
+                <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">客方面对门（长边 A），主方背对门（长边 B）。</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">4</span>
+              <div>
+                <div style="font-size:14px;font-weight:500">主客分明</div>
+                <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">客方坐长边 A，主方坐长边 B，互不混排。</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">5</span>
+              <div>
+                <div style="font-size:14px;font-weight:500">1号对坐</div>
+                <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">无论人数奇偶，双方1号始终正面对坐。</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">6</span>
+              <div>
+                <div style="font-size:14px;font-weight:500">列席位处理</div>
+                <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">双方均满员时，主方8号以对比色标识为列席位。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="navbar-dropdown">
+        <button class="navbar-nav-btn" id="btn-tips">使用提示</button>
+        <div class="dropdown-panel" id="panel-tips">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
+                <polyline points="3,8 6,11 13,5" />
+              </svg>
+              <span style="font-size:14px;color:var(--color-muted-foreground)">设置主/客方人数后，平面图预览区会自动生成对应座次图</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
+                <polyline points="3,8 6,11 13,5" />
+              </svg>
+              <span style="font-size:14px;color:var(--color-muted-foreground)">可将数字替换为真实姓名，或微调短边座位</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
+                <polyline points="3,8 6,11 13,5" />
+              </svg>
+              <span style="font-size:14px;color:var(--color-muted-foreground)">MVP 仅支持标准长方形会议室（18 座布局）</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </nav>
   </div>
 </header>
@@ -1750,127 +1810,56 @@ body {
 </script>
 
 <!-- ============================================================
-     弹窗：座次规则 / 使用提示
-     ============================================================ -->
-<!-- 座次规则弹窗 -->
-<div class="modal-overlay" id="modal-rules" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal-backdrop"></div>
-  <div class="modal-dialog">
-    <div class="modal-header">
-      <h2 class="modal-title">座次规则</h2>
-      <button class="modal-close" aria-label="关闭">&times;</button>
-    </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">1</span>
-        <div>
-          <div style="font-size:14px;font-weight:500">以左为尊</div>
-          <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">2 号在 1 号的左手边，3 号在右手边，依次左右交替。</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">2</span>
-        <div>
-          <div style="font-size:14px;font-weight:500">居中为尊</div>
-          <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">1 号永远居中；偶数时 1 号、2 号同时居中。</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">3</span>
-        <div>
-          <div style="font-size:14px;font-weight:500">面门为尊</div>
-          <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">客方面对门（长边 A），主方背对门（长边 B）。</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">4</span>
-        <div>
-          <div style="font-size:14px;font-weight:500">主客分明</div>
-          <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">客方坐长边 A，主方坐长边 B，互不混排。</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">5</span>
-        <div>
-          <div style="font-size:14px;font-weight:500">1号对坐</div>
-          <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">无论人数奇偶，双方1号始终正面对坐。</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <span style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--color-secondary);font-size:12px;font-weight:600;color:var(--color-secondary-foreground);flex-shrink:0">6</span>
-        <div>
-          <div style="font-size:14px;font-weight:500">列席位处理</div>
-          <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:2px">双方均满员时，主方8号以对比色标识为列席位。</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 使用提示弹窗 -->
-<div class="modal-overlay" id="modal-tips" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal-backdrop"></div>
-  <div class="modal-dialog">
-    <div class="modal-header">
-      <h2 class="modal-title">使用提示</h2>
-      <button class="modal-close" aria-label="关闭">&times;</button>
-    </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;gap:10px;align-items:flex-start">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
-          <polyline points="3,8 6,11 13,5" />
-        </svg>
-        <span style="font-size:14px;color:var(--color-muted-foreground)">设置主/客方人数后，平面图预览区会自动生成对应座次图</span>
-      </div>
-      <div style="display:flex;gap:10px;align-items:flex-start">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
-          <polyline points="3,8 6,11 13,5" />
-        </svg>
-        <span style="font-size:14px;color:var(--color-muted-foreground)">可将数字替换为真实姓名，或微调短边座位</span>
-      </div>
-      <div style="display:flex;gap:10px;align-items:flex-start">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px" aria-hidden="true">
-          <polyline points="3,8 6,11 13,5" />
-        </svg>
-        <span style="font-size:14px;color:var(--color-muted-foreground)">MVP 仅支持标准长方形会议室（18 座布局）</span>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ============================================================
-     移动端卡片折叠/展开（已废弃，改用弹窗）
+     导航下拉面板交互
      ============================================================ -->
 <script>
 (function() {
-  var modals = document.querySelectorAll('.modal-overlay');
+  var panels = document.querySelectorAll('.dropdown-panel');
+  var buttons = {
+    rules: document.getElementById('btn-rules'),
+    tips: document.getElementById('btn-tips')
+  };
+  var panelsById = {
+    rules: document.getElementById('panel-rules'),
+    tips: document.getElementById('panel-tips')
+  };
 
-  // 打开弹窗
-  document.getElementById('btn-show-rules').addEventListener('click', function() {
-    document.getElementById('modal-rules').classList.add('is-open');
-  });
-  document.getElementById('btn-show-tips').addEventListener('click', function() {
-    document.getElementById('modal-tips').classList.add('is-open');
-  });
-
-  // 关闭弹窗：× 按钮、点击背景、ESC
-  modals.forEach(function(modal) {
-    var closeBtn = modal.querySelector('.modal-close');
-    var backdrop = modal.querySelector('.modal-backdrop');
-
-    function close() {
-      modal.classList.remove('is-open');
-    }
-
-    closeBtn.addEventListener('click', close);
-    backdrop.addEventListener('click', close);
-
-    // ESC 键关闭
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && modal.classList.contains('is-open')) {
-        close();
-      }
+  function closeAll(except) {
+    panels.forEach(function(p) {
+      if (p !== except) p.classList.remove('is-open');
     });
+  }
+
+  // 按钮切换
+  buttons.rules.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var panel = panelsById.rules;
+    var wasOpen = panel.classList.contains('is-open');
+    closeAll();
+    if (!wasOpen) panel.classList.add('is-open');
+  });
+
+  buttons.tips.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var panel = panelsById.tips;
+    var wasOpen = panel.classList.contains('is-open');
+    closeAll();
+    if (!wasOpen) panel.classList.add('is-open');
+  });
+
+  // 点击面板外部关闭
+  document.addEventListener('click', function(e) {
+    var insidePanel = false;
+    panels.forEach(function(p) {
+      if (p.contains(e.target)) insidePanel = true;
+    });
+    if (e.target === buttons.rules || e.target === buttons.tips) insidePanel = true;
+    if (!insidePanel) closeAll();
+  });
+
+  // ESC 关闭
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeAll();
   });
 })();
 </script>
