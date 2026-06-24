@@ -1505,7 +1505,18 @@ body {
     }
   }
 
-  /* ---- SVG 事件委托：mousedown / mousemove / mouseup ---- */
+  /* ---- 触摸/鼠标事件坐标提取 ---- */
+  function getEventClientPos(e) {
+    if (e.touches && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  }
+
+  /* ---- SVG 事件委托：pointer/touch down / move / up ---- */
   function getSeatGroup(el) {
     while (el && el !== svgEl) {
       if (el.classList && el.classList.contains('seat-group')) return el;
@@ -1514,7 +1525,7 @@ body {
     return null;
   }
 
-  function handleSVGMouseDown(e) {
+  function handleSVGPointerDown(e) {
     if (!customMode) return;
     var group = getSeatGroup(e.target);
     if (!group) { hideNameEditor(); return; }
@@ -1533,28 +1544,30 @@ body {
     if (sideSeats[idx] == null) return; // 空位不可拖拽，不触发任何操作
 
     // 记录准备拖拽
+    var pos = getEventClientPos(e);
     dragState.active = false;
     dragState.side = side;
     dragState.index = idx;
-    dragState.startX = e.clientX;
-    dragState.startY = e.clientY;
-    var pos = getSeatSvgPos(side, idx);
-    dragState.seatX = pos.x;
-    dragState.seatY = pos.y;
+    dragState.startX = pos.clientX;
+    dragState.startY = pos.clientY;
+    var seatPos = getSeatSvgPos(side, idx);
+    dragState.seatX = seatPos.x;
+    dragState.seatY = seatPos.y;
 
     e.preventDefault();
   }
 
-  function handleSVGMouseMove(e) {
+  function handleSVGPointerMove(e) {
     if (!customMode || dragState.side == null) return;
 
-    var dx = e.clientX - dragState.startX;
-    var dy = e.clientY - dragState.startY;
+    var pos = getEventClientPos(e);
+    var dx = pos.clientX - dragState.startX;
+    var dy = pos.clientY - dragState.startY;
 
     // 移动超过 3px 启动拖拽
     if (!dragState.active && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
       dragState.active = true;
-      createDragGhost(dragState.side, dragState.index, e.clientX, e.clientY);
+      createDragGhost(dragState.side, dragState.index, pos.clientX, pos.clientY);
       // 标记源座位
       var groups = seatsLayer.querySelectorAll('.seat-group');
       for (var i = 0; i < groups.length; i++) {
@@ -1568,13 +1581,15 @@ body {
     }
 
     if (dragState.active && dragState.ghost) {
+      // 拖拽中阻止页面滚动
+      if (e.cancelable) e.preventDefault();
       var wr = wrapperEl.getBoundingClientRect();
-      dragState.ghost.style.left = (e.clientX - wr.left - 28) + 'px';
-      dragState.ghost.style.top = (e.clientY - wr.top - 28) + 'px';
+      dragState.ghost.style.left = (pos.clientX - wr.left - 28) + 'px';
+      dragState.ghost.style.top = (pos.clientY - wr.top - 28) + 'px';
     }
   }
 
-  function handleSVGMouseUp(e) {
+  function handleSVGPointerUp(e) {
     if (!customMode) return;
 
     if (dragState.active) {
@@ -1635,8 +1650,9 @@ body {
 
   /* ---- 完成拖拽：检测目标空位并交换（支持跨侧，含短边） ---- */
   function finishDrag(e) {
-    // 找到鼠标下方的 seat-group
-    var target = document.elementFromPoint(e.clientX, e.clientY);
+    // 找到指针/手指下方的 seat-group
+    var pos = getEventClientPos(e);
+    var target = document.elementFromPoint(pos.clientX, pos.clientY);
     var group = getSeatGroup(target);
     if (!group) return; // 未落在座位上，取消
 
@@ -1782,10 +1798,14 @@ body {
       toggleCustomMode();
     });
 
-    // SVG 事件委托（mousedown/mousemove/mouseup）
-    svgEl.addEventListener('mousedown', handleSVGMouseDown);
-    document.addEventListener('mousemove', handleSVGMouseMove);
-    document.addEventListener('mouseup', handleSVGMouseUp);
+    // SVG 事件委托（鼠标 + 触摸）
+    svgEl.addEventListener('mousedown', handleSVGPointerDown);
+    svgEl.addEventListener('touchstart', handleSVGPointerDown, { passive: false });
+    document.addEventListener('mousemove', handleSVGPointerMove);
+    document.addEventListener('touchmove', handleSVGPointerMove, { passive: false });
+    document.addEventListener('mouseup', handleSVGPointerUp);
+    document.addEventListener('touchend', handleSVGPointerUp);
+    document.addEventListener('touchcancel', handleSVGPointerUp);
 
     // 姓名编辑器事件
     seatEditor.addEventListener('keydown', function (e) {
